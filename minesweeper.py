@@ -1,9 +1,12 @@
 
 import pygame, sys
 from pygame.locals import *
+from typing import Tuple
 
 pygame.font.init()
-from board import Board
+
+
+from board import Board, TILE_STATES
 
 
 ##COLORS##
@@ -21,182 +24,93 @@ NORTHEAST = "northeast"
 SOUTHWEST = "southwest"
 SOUTHEAST = "southeast"
 
+WINDOW_SIZE = 1200
+INITIAL_BOARD = {
+    'width': 25,
+    'height': 10,
+    'mines': 50
+}
+
 
 class MineSweeper:
     def __init__(self) -> None:
-        self.board = Board(width=25, height=10, mines=50)
-        self.graphics = Graphics(width=25, height=10)
-        self.turn = BLUE
-        self.selected_piece = None # a board location. 
-        self.hop = False
-        self.selected_legal_moves = []
+
+        # set up screen and object sizes
+        self.caption: str = "Minesweeper"
+        self.fps: int = 60
+        self.clock = pygame.time.Clock()
+        self.window_size = WINDOW_SIZE
         
         # set up the board
+        self.board = Board(width=INITIAL_BOARD['width'], 
+                           height=INITIAL_BOARD['height'], 
+                           mines=INITIAL_BOARD['mines']) 
         self.board.setup()
+        self.tile_size = self.window_size / self.board.width
+        
+        # load graphic resources
+        self.tile_unchecked = None
+        self.tile_checked = None
+        self.mine = None
+        self._load_resources()
 
+        # create screen
+        self.screen = pygame.display.set_mode((self.window_size, self.window_size*self.board.height/self.board.width))
+        self.screen.fill((200, 200, 200))
+        pygame.display.flip()
+        
+    def main(self):
+        self.setup_window()
 
-    def setup(self):
-        """Draws the window and board at the beginning of the game"""
-        self.graphics.setup_window()
+        while True: # main game loop
+            self.event_loop()
+            self.update_display()
 
     def event_loop(self):
-        """
-        The event loop. This is where events are triggered 
-        (like a mouse click) and then effect the game state.
-        """
-        self.mouse_pos = self.graphics.board_coords(pygame.mouse.get_pos()) # what square is the mouse in?
-        if self.selected_piece != None:
-            self.selected_legal_moves = self.board.legal_moves(self.selected_piece, self.hop)
 
         for event in pygame.event.get():
+            row, col = self._find_clicked_tile(pygame.mouse.get_pos()) # what tile is the mouse in?
 
             if event.type == QUIT:
                 self.terminate_game()
 
             if event.type == MOUSEBUTTONDOWN:
-                if self.hop == False:
-                    print(self.mouse_pos)
-                    # if self.board.location(self.mouse_pos).occupant != None and self.board.location(self.mouse_pos).occupant.color == self.turn:
-                    #     self.selected_piece = self.mouse_pos
-
-                    # elif self.selected_piece != None and self.mouse_pos in self.board.legal_moves(self.selected_piece):
-
-                    #     self.board.move_piece(self.selected_piece, self.mouse_pos)
-                    
-                    #     if self.mouse_pos not in self.board.adjacent(self.selected_piece):
-                    #         self.board.remove_piece(((self.selected_piece[0] + self.mouse_pos[0]) >> 1, (self.selected_piece[1] + self.mouse_pos[1]) >> 1))
-                        
-                    #         self.hop = True
-                    #         self.selected_piece = self.mouse_pos
-
-                    #     else:
-                    #         self.end_turn()
-
-                if self.hop == True:					
-                    if self.selected_piece != None and self.mouse_pos in self.board.legal_moves(self.selected_piece, self.hop):
-                        self.board.move_piece(self.selected_piece, self.mouse_pos)
-                        self.board.remove_piece(((self.selected_piece[0] + self.mouse_pos[0]) >> 1, (self.selected_piece[1] + self.mouse_pos[1]) >> 1))
-
-                    if self.board.legal_moves(self.mouse_pos, self.hop) == []:
-                            self.end_turn()
-
-                    else:
-                        self.selected_piece = self.mouse_pos
-
-
-    def update(self):
-        """Calls on the graphics class to update the game display."""
-        self.graphics.update_display(self.board, self.selected_legal_moves, self.selected_piece)
-
-    def terminate_game(self):
-        """Quits the program and ends the game."""
-        pygame.quit()
-        sys.exit
-
-    def main(self):
-        """"This executes the game and controls its flow."""
-        self.setup()
-
-        while True: # main game loop
-            self.event_loop()
-            self.update()
-
-    def end_turn(self):
-        """
-        End the turn. Switches the current player. 
-        end_turn() also checks for and game and resets a lot of class attributes.
-        """
-        if self.turn == BLUE:
-            self.turn = RED
-        else:
-            self.turn = BLUE
-
-        self.selected_piece = None
-        self.selected_legal_moves = []
-        self.hop = False
-
-        if self.check_for_endgame():
-            if self.turn == BLUE:
-                self.graphics.draw_message("RED WINS!")
-            else:
-                self.graphics.draw_message("BLUE WINS!")
-
-    def check_for_endgame(self):
-        """
-        Checks to see if a player has run out of moves or pieces. If so, then return True. Else return False.
-        """
-        for x in range(8):
-            for y in range(8):
-                if self.board.location((x,y)).color == BLACK and self.board.location((x,y)).occupant != None and self.board.location((x,y)).occupant.color == self.turn:
-                    if self.board.legal_moves((x,y)) != []:
-                        return False
-
-        return True
-
-
-class Graphics:
-    def __init__(self, width, height):
-        self.caption = "Minesweeper"
-
-        # set up screen and object sizes
-        self.fps = 60
-        self.clock = pygame.time.Clock()
-
-        self.window_size = 1200
-        self.width = width
-        self.height = height
-        self.tile_size = self.window_size / width
-
-        # load graphic resources
-        self.tile_unchecked = None
-        self.tile_checked = None
-        self.mine = None
-
-        self._load_resources()
-
-        self.screen = pygame.display.set_mode((self.window_size, self.window_size*height/width))
-        self.screen.fill((200, 200, 200))
-        pygame.display.flip()
-        # self.background = pygame.image.load('resources/board.png')
-
-        self.message = False
+                print(f'clicked row {row}, col {col}')
+                self.board.click_tile(row=row, col=col)
 
     def setup_window(self):
-        """
-        This initializes the window and sets the caption at the top.
-        """
         pygame.init()
         pygame.display.set_caption(self.caption)
 
-    def update_display(self, board, legal_moves, selected_piece):
-        """
-        This updates the current display.
-        """
-        # self.screen.blit(self.background, (0,0))
-        
-        self.highlight_squares(legal_moves, selected_piece)
+    def update_display(self):
         self.draw_tiles()
-        # self.draw_board_pieces(board)
-
-        # if self.message:
-        #     self.screen.blit(self.text_surface_obj, self.text_rect_obj)
-
         pygame.display.update()
         self.clock.tick(self.fps)
 
     def draw_tiles(self):
-        """
-        Takes a board object and draws all of its squares to the display
-        """
+        
+        for tile in self.board.tiles:
+            # first, determine what resource to display based on the tile status
+            if tile.status == TILE_STATES[0]:
+                resource = self.tile_unchecked
+            elif tile.status == TILE_STATES[1]:
+                if tile.mine:
+                    resource = self.mine
+                else:
+                    resource = self.tile_checked
+            elif tile.status == TILE_STATES[2]:
+                pass
+            elif tile.status == TILE_STATES[3]:
+                pass
+            
+            self.screen.blit(resource, (tile.col*self.tile_size, tile.row*self.tile_size))
 
-
-        for x in range(self.width):
-            for y in range(self.height):
-                # pygame.draw.rect(self.screen, board[x][y].color, (x * self.square_size, y * self.square_size, self.square_size, self.square_size), )
-                self.screen.blit(self.tile_unchecked, (x*self.tile_size, y*self.tile_size))
+        # for x in range(self.width):
+        #     for y in range(self.height):
+        #         # pygame.draw.rect(self.screen, board[x][y].color, (x * self.square_size, y * self.square_size, self.square_size, self.square_size), )
+        #         self.screen.blit(self.tile_unchecked, (x*self.tile_size, y*self.tile_size))
 
     def _load_resources(self):
-        # load graphic resources
         self.tile_unchecked = self._scale_resource(pygame.image.load('resources/tile_unchecked.png'))
         self.tile_checked = self._scale_resource(pygame.image.load('resources/tile_checked.png'))
         self.mine = self._scale_resource(pygame.image.load('resources/mine.png'))
@@ -208,29 +122,17 @@ class Graphics:
         image = pygame.transform.scale(image, (width*ratio, height*ratio))
         return image
 
-    def pixel_coords(self, board_coords):
+    def _find_tile_by_row_col(self, row: int, col: int) -> Tuple[float, float]:
         """
-        Takes in a tuple of board coordinates (x,y) 
-        and returns the pixel coordinates of the center of the square at that location.
+        Determines the pixel coordinates of a tile given a row and col
         """
-        return (board_coords[0] * self.tile_size + self.tile_size, board_coords[1] * self.tile_size + self.tile_size)
+        return (col * self.tile_size + self.tile_size, row * self.tile_size + self.tile_size)
 
-    def board_coords(self, pixel):
+    def _find_clicked_tile(self, mouse_pos: tuple) -> Tuple[int, int]:
         """
-        Does the reverse of pixel_coords(). Takes in a tuple of of pixel coordinates and returns what square they are in.
+        finds the row and col of the tile click
         """
-        return (pixel[0] // self.tile_size, pixel[1] // self.tile_size)
-
-    def highlight_squares(self, squares, origin):
-        """
-        Squares is a list of board coordinates. 
-        highlight_squares highlights them.
-        """
-        for square in squares:
-            pygame.draw.rect(self.screen, HIGH, (square[0] * self.square_size, square[1] * self.square_size, self.square_size, self.square_size))	
-
-        if origin != None:
-            pygame.draw.rect(self.screen, HIGH, (origin[0] * self.square_size, origin[1] * self.square_size, self.square_size, self.square_size))
+        return (int(mouse_pos[1] // self.tile_size), int(mouse_pos[0] // self.tile_size))
 
     def draw_message(self, message):
         """
@@ -240,7 +142,12 @@ class Graphics:
         self.font_obj = pygame.font.Font('freesansbold.ttf', 44)
         self.text_surface_obj = self.font_obj.render(message, True, HIGH, BLACK)
         self.text_rect_obj = self.text_surface_obj.get_rect()
-        self.text_rect_obj.center = (self.window_size >> 1, self.window_size >> 1)	
+        self.text_rect_obj.center = (self.window_size >> 1, self.window_size >> 1)
+	
+    def terminate_game(self):
+        """Quits the program and ends the game."""
+        pygame.quit()
+        sys.exit
 
 
 def text_version(width=25, height=10, mines=50):

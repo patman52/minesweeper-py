@@ -107,6 +107,7 @@ class Board:
         
         # if its a mine, then game over
         if self.tiles[tile_id].mine:
+            print('YOU CLICKED A MINE!')
             return True
         
         # if the tile has zero adjacent mines, we need to clear out all neighboring zero adjancent mine tiles
@@ -137,6 +138,9 @@ class Board:
             return
 
     def print_board(self) -> None:
+        """
+        Used for text based console version only, prints a mock up board on the console
+        """
         game_str = ''
         col_count = 0
         for tile in self.tiles:
@@ -178,6 +182,8 @@ class Board:
             new_tile.col = col_count
             self.tiles.append(new_tile)
             col_count += 1
+
+            print(f'created tile {tile_id}, row = {row_count}, col = {col_count}')
 
     def _assign_mines(self) -> None:
         self.tiles_with_mines = random.sample(range(0, len(self.tiles)-1), self.mine_count)
@@ -249,9 +255,13 @@ class Board:
 
                 
     def _check_validity(self):
+        """
+        Checks that we have not clicked a mine!
+        """
         for tile in self.tiles:
             if tile.mine and tile.status == TILE_STATES[1]:
                 self.valid = False
+
 
 class Tile:
     id: int = 0                     # id of tile as position in board tile set
