@@ -33,7 +33,7 @@ class Board:
         self.tiles_with_mines: list = []        # the tile ids that have mines
         self.neighbors: dict[int: list] = {}    # maps tiles to their neighbors key = tile id / value = list of neighboring tiles
         self.valid = True                       # turns to false if a mine is clicked
-
+        self.user_won = False                   # turns true when all mines have been correctly found!
         # check that the number of mines does not exceed the total tiles
         if self.mine_count / (self.width * self.height) > MAX_MINE_SHARE:
             raise ValueError(f'mines cannot exceed {MAX_MINE_SHARE*100}% of total board tiles!\n'
@@ -47,6 +47,7 @@ class Board:
         self._create_tiles()
         self._assign_mines()
         self._map_neighbors()
+        print("board set up!")
 
     def clear_board(self) -> None:
         """
@@ -77,7 +78,7 @@ class Board:
         
         return None
     
-    def click_tile(self, **kwargs) -> bool | None:
+    def click_tile(self, **kwargs) -> None:
         """
         click a tile, keyword parameters can be:
             tile_id -> the index of the tile in the tiles list
@@ -94,13 +95,13 @@ class Board:
 
             if tile_id is None:
                 print('No matching row or coloumn on game board!')
-                return None            
+                return           
         else:
             raise ValueError('You must specify either a tile id, or a row and col pair')
 
         # if the tile is flagged on question mark, or already checked then clicking does nothing
         if self.tiles[tile_id].status != TILE_STATES[0]:
-            return None
+            return
         
         # else we change the status to checked
         self.tiles[tile_id].status = TILE_STATES[1]
@@ -108,32 +109,50 @@ class Board:
         # if its a mine, then game over
         if self.tiles[tile_id].mine:
             print('YOU CLICKED A MINE!')
-            return True
         
         # if the tile has zero adjacent mines, we need to clear out all neighboring zero adjancent mine tiles
-        if self.tiles[tile_id].adjacent_mines == 0:
+        elif self.tiles[tile_id].adjacent_mines == 0:
             self._find_zero_adjacent_neighboring_tiles(tile_id)
         
+        # now check if we have any checked mines for game over
         self._check_validity()
 
-        return False
+    def flag_tile(self, **kwargs) -> None:
+        """
+        flag a tile, keyword parameters can be:
+            tile_id -> the index of the tile in the tiles list
+            row -> the row of the tile indexed to 0
+            col -> the col of the tile indexed to 0
+        """
 
-    def flag_tile(self, tile_id: int) -> None:
-        """
-        param: tile_id - index of tile in self.tiles list we are flagging
-        """
+        if 'tile_id' in kwargs:
+            tile_id = int(kwargs['tile_id'])
+        elif 'row' in kwargs and 'col' in kwargs:
+            row = int(kwargs['row'])
+            col = int(kwargs['col'])
+            tile_id = self.get_tile_id_by_row_and_col(row, col)
+
+            if tile_id is None:
+                print('No matching row or coloumn on game board!')
+                return           
+        else:
+            raise ValueError('You must specify either a tile id, or a row and col pair')
+        
         # flip to flagged
         if self.tiles[tile_id].status == TILE_STATES[0]:
+            print('flipping to flagged')
             self.tiles[tile_id].status = TILE_STATES[2]
             return
         
         # flip to question mark
         if self.tiles[tile_id].status == TILE_STATES[2]:
+            print('flipping to question mark')
             self.tiles[tile_id].status = TILE_STATES[3]
             return
         
         # flip back to unchecked
         if self.tiles[tile_id].status == TILE_STATES[3]:
+            print('unflagging tile')
             self.tiles[tile_id].status = TILE_STATES[0]
             return
 
@@ -193,7 +212,7 @@ class Board:
             
 
     def _map_neighbors(self) -> None:
-        """ 
+        """ `
         tiles can have up to 8 neighbors
             c-1  c  c+1
         r-1 [0] [1] [2]
@@ -227,33 +246,42 @@ class Board:
 
             tile.adjacent_mines = len([neighboring_tile for neighboring_tile in self.neighbors[tile.id] if neighboring_tile in self.tiles_with_mines])
 
-    def _find_zero_adjacent_neighboring_tiles(self, tile_id: int) -> None:
+    def _find_zero_adjacent_neighboring_tiles(self, tile_id: int, maximum_iters: int = 1e7) -> None:
         """
-        Recursive function to clear out section of tiles with no adjacent mines
-        param: tile_id - the index of the tile in the self.tiles list we are checking for neighbors
+        Clears out sections of connected tiles with no adjacent mines
         """
+        tiles_to_check = [tile_id]
+        current_iter = 0
+        while True:
+            # break out of the loop if we have checked them all
+            if len(tiles_to_check) == 0:
+                break
 
-        # get a list of all neighboring tiles
-        neighbor_tiles = self.neighbors[tile_id]
+            # run time catch to avoid an infinite loop
+            current_iter += 1                   
+            if current_iter >= maximum_iters:
+                raise RuntimeWarning(f'Exceeded runtime iterations of {maximum_iters} during _find_zero_adjacent_neighboring tiles_mod')  
 
-        # loop through tiles and if they have zero adjacent tiles and are not checked, change the status to checked
-        for neighbor_tile_id in neighbor_tiles:
-            # skip mines
-            if self.tiles[neighbor_tile_id].mine:
-                continue
-            # skip tiles with adjancent mines
-            if self.tiles[neighbor_tile_id].adjacent_mines > 0:
-                continue
-            # skip ones that have already been checked
-            if self.tiles[neighbor_tile_id].status == TILE_STATES[1]:
-                continue
+            temp_list = []
+            for tile_id in tiles_to_check:
+                for neighbor_tile_id in self.neighbors[tile_id]:
 
-            # if we find one that doesn't get filtered out based on the criteria above, change the status to checked and then check
-            # its adjacent tiles
-            self.tiles[neighbor_tile_id].status = TILE_STATES[1]
-            self._find_zero_adjacent_neighboring_tiles(neighbor_tile_id)
+                    # skip mines
+                    if self.tiles[neighbor_tile_id].mine:
+                        continue
 
-                
+                    # skip ones that have already been checked
+                    if self.tiles[neighbor_tile_id].status == TILE_STATES[1]:
+                        continue
+ 
+                    # otherwise, check the tile and if it also has zero adjacent mines, add it to the temp list
+                    self.tiles[neighbor_tile_id].status = TILE_STATES[1]
+                    if self.tiles[neighbor_tile_id].adjacent_mines == 0:
+                        temp_list.append(neighbor_tile_id)
+            
+            # reset the tiles to check and loop around
+            tiles_to_check = temp_list
+
     def _check_validity(self):
         """
         Checks that we have not clicked a mine!
@@ -261,7 +289,20 @@ class Board:
         for tile in self.tiles:
             if tile.mine and tile.status == TILE_STATES[1]:
                 self.valid = False
+                break
 
+    def _check_win(self):
+        for mine_tile in self.tiles_with_mines:
+            # if any mine tiles are not flagged, then we still have not won
+            if mine_tile.status != TILE_STATES[2]:
+                return
+            
+        self.user_won = True
+        # check every other tile
+        for tile in self.tiles:
+            if not tile.mine and tile.status == TILE_STATES[0]:
+                tile.status = TILE_STATES[1]
+    
 
 class Tile:
     id: int = 0                     # id of tile as position in board tile set
