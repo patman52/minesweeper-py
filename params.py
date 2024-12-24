@@ -20,8 +20,39 @@ NUM_TEXT_COLOUR = {
     8: (150, 150, 150) # grey-ish
 }
 
+# path to save data file
 SAVE_DATA_FILE = r'user data.json'
 
+# height of the header containing the new game buttons, counters, and settings button
+HEADER_HEIGHT = 70
+
+# used to turn on and off segments in the seven segment counters, key is the digit, and value is a seven character string with 0s and 1s
+# 0 = off, 1 = on
+"""
+    _a__
+   f|  |b
+    |  |
+    _g___
+   e|  |c
+    |  |
+    ____
+     d
+"""
+
+SEVEN_SEGMENT_DISPLAY = {
+    0: '1111110',
+    1: '0110000',
+    2: '1101101',
+    3: '1111001',
+    4: '0110011',
+    5: '1011011',
+    6: '1011111',
+    7: '1110000',
+    8: '1111111',
+    9: '1111011'
+}
+
+# default user and board settings
 DEFAULTS = {
     'screen_fill': [200, 200, 200],
     'tile_size': 40,
@@ -42,28 +73,37 @@ DEFAULTS = {
             'width': 40,
             'height': 25,
             'mines': 100             
+        },
+        'custom': {
+            'width': 40,
+            'height': 25,
+            'mines': 100 
         }
     },
     'user_stats': {
         'easy': {
             'wins': 0,
             'losses': 0,
-            'fastest_game': 0.0
+            'fastest_game': 0.0,
+            'average_game': 0.0,
         },
         'medium': {
             'wins': 0,
             'losses': 0,
-            'fastest_game': 0.0
+            'fastest_game': 0.0,
+            'average_game': 0.0,
         },
         'hard': {
             'wins': 0,
             'losses': 0,
-            'fastest_game': 0.0
+            'fastest_game': 0.0,
+            'average_game': 0.0,
         },
         'custom': {
             'wins': 0,
             'losses': 0,
-            'fastest_game': 0.0
+            'fastest_game': 0.0,
+            'average_game': 0.0,
         }
     }
 }

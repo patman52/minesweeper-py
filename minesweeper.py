@@ -1,12 +1,22 @@
+"""
+minesweeper.py
 
+A version of the classic minesweeper built in pure Python using Pygame!
 
+Author P Tunis 12/2024
+"""
+
+# standard libraries
+from math import sqrt
 from typing import Tuple
 
+# external dependencies
 import pygame, sys
 from pygame.locals import *
 
-from board import Board, TILE_STATES
-from params import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_LEFT, MOUSE_RIGHT
+# custom scripts
+from board import Board, TILE_STATES, TILE_ACTIONS
+from params import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SEVEN_SEGMENT_DISPLAY
 
 pygame.font.init()
 
@@ -32,10 +42,13 @@ class MineSweeper:
         self.tile_flagged = None
         self.tile_question = None
         self.mine = None
+        self.new_game = None
+        self.game_over = None
+        self.segment_display = None
         self._load_resources()
 
         # create screen
-        self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height))
+        self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height+HEADER_HEIGHT))
         self.screen.fill(self.user.screen_fill)
         pygame.display.flip()
         
@@ -49,24 +62,52 @@ class MineSweeper:
     def event_loop(self):
 
         for event in pygame.event.get():
-            row, col = self._find_clicked_tile(pygame.mouse.get_pos()) # what tile is the mouse in?
-
+            # quit the game
             if event.type == QUIT:
                 self.terminate_game()
+            
+            # get the current position of the mouse
+            x, y = pygame.mouse.get_pos()
 
-            if event.type == MOUSEBUTTONDOWN and event.button == MOUSE_LEFT:
-                print(f'clicked row {row}, col {col}')
-                self.board.click_tile(row=row, col=col)
+            # flag the tile
+            if event.type == MOUSEBUTTONDOWN and event.button == MOUSE_RIGHT and y > HEADER_HEIGHT:
+                row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
+                self.board.tile_action(action=TILE_ACTIONS[3], row=row, col=col)
+                return
 
-            if event.type == MOUSEBUTTONDOWN and event.button == MOUSE_RIGHT:
-                print(f'right clicked row {row}, col {col}')
-                self.board.flag_tile(row=row, col=col)
+            # when we click down on the tile, and hold it, it will be 'pressed'
+            if pygame.mouse.get_pressed()[0]:
+                if y > HEADER_HEIGHT:
+                    row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
+                    self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
+                else:
+                    """
+                    determine if the click is on the new game / game over button which isa circle
+                    
+                    finding if a point is in a circle
+                    (x - center_x)² + (y - center_y)² < radius².
+                    """
+                    radius = self.new_game.get_width() / 2
+                    center_x = self.user.tile_size * self.board.width / 2
+                    center_y = HEADER_HEIGHT / 2
+
+                    if sqrt((x - center_x)**2 + (y - center_y)**2) < radius:
+                        self.board.setup()
+
+            # when we release the button we will click any tile we are hovering over
+            elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
+                if y > HEADER_HEIGHT:
+                    row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
+                    self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
+                else:
+                    self.board.tile_action(TILE_ACTIONS[1])
 
     def setup_window(self):
         pygame.init()
         pygame.display.set_caption(self.caption)
 
     def update_display(self):
+        self.draw_buttons()
         self.draw_tiles()
         # check for end game
         if not self.board.valid:
@@ -78,29 +119,51 @@ class MineSweeper:
         pygame.display.update()
         self.clock.tick(self.fps)
 
+    def draw_buttons(self):
+        pygame.draw.rect(self.screen, self.user.screen_fill, (0, 0, self.user.tile_size/self.board.width, HEADER_HEIGHT), 10)
+        if not self.board.valid:
+            button_width = self.new_game.get_width()
+            button_height = self.new_game.get_height()
+            self.screen.blit(self.game_over, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+            return
+        
+        if self.board.tile_pressed:
+            button_width = self.game_over.get_width()
+            button_height = self.game_over.get_height()
+            self.screen.blit(self.new_game_tile_pressed, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+        else:
+            button_width = self.game_over.get_width()
+            button_height = self.game_over.get_height()
+            self.screen.blit(self.new_game, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+
     def draw_tiles(self): 
         for tile in self.board.tiles:
             # first, determine what resource to display based on the tile status
             if tile.status == TILE_STATES[0]:
-                self.screen.blit(self.tile_unchecked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size))
+                if tile.pressed:
+                    resource = pygame.transform.flip(self.tile_unchecked, True, True)
+                else:
+                    resource = self.tile_unchecked
+                self.screen.blit(resource, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
             elif tile.status == TILE_STATES[1]:
-                self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size))
+                self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
                 if tile.adjacent_mines > 0:
                     mine_num = pygame.font.SysFont('Times New Roman', int(self.user.tile_size*0.8))
                     text_surface = mine_num.render(str(tile.adjacent_mines), False, NUM_TEXT_COLOUR[tile.adjacent_mines])
                     text_x = tile.col*self.user.tile_size + (self.user.tile_size - text_surface.get_width())/2
-                    text_y = tile.row*self.user.tile_size + self.user.tile_size*0.05
+                    text_y = tile.row*self.user.tile_size + self.user.tile_size*0.05 + HEADER_HEIGHT
                     self.screen.blit(text_surface, (text_x, text_y))
             elif tile.status == TILE_STATES[2]:
-                self.screen.blit(self.tile_flagged, (tile.col*self.user.tile_size, tile.row*self.user.tile_size))
+                self.screen.blit(self.tile_flagged, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
             elif tile.status == TILE_STATES[3]:
-                self.screen.blit(self.tile_question, (tile.col*self.user.tile_size, tile.row*self.user.tile_size))
+                self.screen.blit(self.tile_question, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+
 
     def draw_mines(self):
         for tile in self.board.tiles:
             if tile.mine:
                 mine_x = tile.col*self.user.tile_size + (self.user.tile_size - self.mine.get_width())/2
-                mine_y = tile.row*self.user.tile_size + (self.user.tile_size - self.mine.get_height())/2
+                mine_y = tile.row*self.user.tile_size + (self.user.tile_size - self.mine.get_height())/2 + HEADER_HEIGHT
                 self.screen.blit(self.mine, (mine_x, mine_y))
 
     def _determine_screen_board_size(self):
@@ -122,6 +185,10 @@ class MineSweeper:
         self.tile_checked = self._scale_resource(pygame.image.load('resources/tile_checked.png'))
         self.tile_flagged = self._scale_resource(pygame.image.load('resources/tile_flagged.png'))
         self.tile_question = self._scale_resource(pygame.image.load('resources/tile_question.png'))
+        self.new_game = self._scale_resource(pygame.image.load('resources/new_game.png'))
+        self.new_game_tile_pressed = self._scale_resource(pygame.image.load('resources/tile_pressed.png'))
+        self.game_over = self._scale_resource(pygame.image.load('resources/game_over.png'))
+        self.segment_display = self._scale_resource(pygame.image.load('resources/segment_display.png'))
         self.mine = self._scale_resource(pygame.image.load('resources/mine.png'), scaling=0.8)
 
     def _scale_resource(self, image: pygame.image, scaling: float = 1.0):
@@ -141,7 +208,7 @@ class MineSweeper:
         """
         finds the row and col of the tile click
         """
-        return (int(mouse_pos[1] // self.user.tile_size), int(mouse_pos[0] // self.user.tile_size))
+        return (int((mouse_pos[1] - HEADER_HEIGHT) // self.user.tile_size), int(mouse_pos[0] // self.user.tile_size))
 
     def draw_message(self, message):
         """

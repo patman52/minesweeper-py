@@ -21,6 +21,15 @@ TILE_STATES = [
     'question'
 ]
 
+TILE_ACTIONS = [
+    'press',    # presses the tile but does not check if, possibly triggering a mind and end gam
+    'release',  # releases the tile without checking it
+    'click',    # changes tile status from unchecked to checked, if the tile is a mine, endgame
+    'flag',     # also serves to place a question mark if the tile is already flagged
+]
+
+MAX_WIDTH = 40
+MAX_TILES = 1600
 MAX_MINE_SHARE = 0.8    # the maximum percent of mines per total tiles allowed
 
 
@@ -38,6 +47,8 @@ class Board:
         if self.mine_count / (self.width * self.height) > MAX_MINE_SHARE:
             raise ValueError(f'mines cannot exceed {MAX_MINE_SHARE*100}% of total board tiles!\n'
                              f'Current mines: {self.mine_count}, total tiles: {self.width*self.height}')
+        self.tile_pressed = False
+        self.current_pressed_tile: int = -1
 
     def setup(self) -> None:
         """
@@ -47,6 +58,7 @@ class Board:
         self._create_tiles()
         self._assign_mines()
         self._map_neighbors()
+        self.valid = True
         print("board set up!")
 
     def clear_board(self) -> None:
@@ -78,32 +90,67 @@ class Board:
         
         return None
     
-    def click_tile(self, **kwargs) -> None:
+    def tile_action(self, action: str, **kwargs) -> None:
         """
-        click a tile, keyword parameters can be:
-            tile_id -> the index of the tile in the tiles list
-            row -> the row of the tile indexed to 0
-            col -> the col of the tile indexed to 0
+        Control pressing, clicking, and flagging tiles and their associated status changes
+        param: action - one of the elements in the TILE_ACTIONS list denoting what we are trying to do to the tile
+        Keyword arguments can be:
+            tile_id: int -> the index of the tile in the tiles list
+            row: int -> the row of the tile indexed to 0
+            col: int -> the col of the tile indexed to 0
         """
 
-        if 'tile_id' in kwargs:
+        if action not in TILE_ACTIONS:
+            raise ValueError(f'{action} is not a valid action to perform against a tile')
+
+        # get the tile_id we are performing the tile against        
+        if 'tile_id' in kwargs and action != TILE_ACTIONS[1]:
             tile_id = int(kwargs['tile_id'])
-        elif 'row' in kwargs and 'col' in kwargs:
-            row = int(kwargs['row'])
-            col = int(kwargs['col'])
-            tile_id = self.get_tile_id_by_row_and_col(row, col)
+        elif 'row' in kwargs and 'col' in kwargs and action != TILE_ACTIONS[1]:
+            tile_id = self.get_tile_id_by_row_and_col(kwargs['row'], kwargs['col'])
 
             if tile_id is None:
                 print('No matching row or coloumn on game board!')
                 return           
+        elif action == TILE_ACTIONS[1]:
+            self._release_tiles()
+            return
         else:
             raise ValueError('You must specify either a tile id, or a row and col pair')
 
-        # if the tile is flagged on question mark, or already checked then clicking does nothing
-        if self.tiles[tile_id].status != TILE_STATES[0]:
+        # if the tile is flagged on question mark, already checked, we won the game, or the board is not valid, then actions do nothing
+        if self.tiles[tile_id].status != TILE_STATES[0] and action != TILE_ACTIONS[3] or not self.valid or self.user_won:
             return
+
+        # pressing a tile
+        if action == TILE_ACTIONS[0]:
+            self._press_tile(tile_id)
+            return
+
+        # clicking a tile
+        if action == TILE_ACTIONS[2]:
+            self._click_tile(tile_id)
+            return
+
+        # flagging / question mark a tile
+        if action == TILE_ACTIONS[3]:
+            self._flag_tile(tile_id)
+            return
+
+    def _press_tile(self, tile_id) -> None:
+        self._release_tiles()
+        self.tiles[tile_id].pressed = True
+        self.tile_pressed = True
+
+    def _release_tiles(self) -> None:
+        self.tile_pressed = False
+        self.current_pressed_tile = -1
+        for tile in self.tiles:
+            tile.pressed = False
+
+    def _click_tile(self, tile_id: int) -> None:
+        self._release_tiles()
         
-        # else we change the status to checked
         self.tiles[tile_id].status = TILE_STATES[1]
         
         # if its a mine, then game over
@@ -117,27 +164,8 @@ class Board:
         # now check if we have any checked mines for game over
         self._check_validity()
 
-    def flag_tile(self, **kwargs) -> None:
-        """
-        flag a tile, keyword parameters can be:
-            tile_id -> the index of the tile in the tiles list
-            row -> the row of the tile indexed to 0
-            col -> the col of the tile indexed to 0
-        """
+    def _flag_tile(self, tile_id: int) -> None:
 
-        if 'tile_id' in kwargs:
-            tile_id = int(kwargs['tile_id'])
-        elif 'row' in kwargs and 'col' in kwargs:
-            row = int(kwargs['row'])
-            col = int(kwargs['col'])
-            tile_id = self.get_tile_id_by_row_and_col(row, col)
-
-            if tile_id is None:
-                print('No matching row or coloumn on game board!')
-                return           
-        else:
-            raise ValueError('You must specify either a tile id, or a row and col pair')
-        
         # flip to flagged
         if self.tiles[tile_id].status == TILE_STATES[0]:
             print('flipping to flagged')
@@ -190,7 +218,6 @@ class Board:
         row_count = 0
         col_count = 0
         for tile_id in range(total_tiles):
-            
             if col_count > self.width-1:
                 col_count = 0
                 row_count += 1
@@ -202,14 +229,11 @@ class Board:
             self.tiles.append(new_tile)
             col_count += 1
 
-            print(f'created tile {tile_id}, row = {row_count}, col = {col_count}')
-
     def _assign_mines(self) -> None:
         self.tiles_with_mines = random.sample(range(0, len(self.tiles)-1), self.mine_count)
         for tile in self.tiles:
             if tile.id in self.tiles_with_mines:
                 tile.mine = True
-            
 
     def _map_neighbors(self) -> None:
         """ `
@@ -294,10 +318,11 @@ class Board:
     def _check_win(self):
         for mine_tile in self.tiles_with_mines:
             # if any mine tiles are not flagged, then we still have not won
-            if mine_tile.status != TILE_STATES[2]:
+            if self.tiles[mine_tile].status != TILE_STATES[2]:
                 return
             
         self.user_won = True
+        print('you won the game!')
         # check every other tile
         for tile in self.tiles:
             if not tile.mine and tile.status == TILE_STATES[0]:
@@ -307,6 +332,7 @@ class Board:
 class Tile:
     id: int = 0                     # id of tile as position in board tile set
     mine: bool = False              # is the tile a mine
+    pressed: bool = False           # if the current tile is pressed by the mouse
     status: str = TILE_STATES[0]    # state of the tile
     adjacent_mines: int = 0         # the number of adjacent mines
     row: int = 0                    # the row of the tile
