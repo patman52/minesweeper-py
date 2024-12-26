@@ -7,8 +7,11 @@ Author P Tunis 12/2024
 """
 
 # standard libraries
+import datetime
+import time
 from math import sqrt
 from typing import Tuple
+
 
 # external dependencies
 import pygame, sys
@@ -16,7 +19,7 @@ from pygame.locals import *
 
 # custom scripts
 from board import Board, TILE_STATES, TILE_ACTIONS
-from params import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SEVEN_SEGMENT_DISPLAY
+from settings import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SEVEN_SEGMENT_DISPLAY
 
 pygame.font.init()
 
