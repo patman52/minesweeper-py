@@ -65,6 +65,7 @@ class Board:
         """
         Clear the existing gameboard
         """
+        self.user_won = False
         self.tiles.clear()
         self.tiles_with_mines.clear()
         self.neighbors.clear()
@@ -163,6 +164,9 @@ class Board:
         
         # now check if we have any checked mines for game over
         self._check_validity()
+        
+        # check if we've won
+        self._check_win()
 
     def _flag_tile(self, tile_id: int) -> None:
 
@@ -316,17 +320,16 @@ class Board:
                 break
 
     def _check_win(self):
-        for mine_tile in self.tiles_with_mines:
-            # if any mine tiles are not flagged, then we still have not won
-            if self.tiles[mine_tile].status != TILE_STATES[2]:
-                return
-            
-        self.user_won = True
-        print('you won the game!')
+        """
+        The user needs to un-check all tiles that are not mines
+        """
         # check every other tile
         for tile in self.tiles:
-            if not tile.mine and tile.status == TILE_STATES[0]:
-                tile.status = TILE_STATES[1]
+            if not tile.mine and tile.status != TILE_STATES[1]:
+                return
+            
+        print('you won!')
+        self.user_won = True
     
 
 class Tile:

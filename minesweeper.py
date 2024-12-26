@@ -19,7 +19,7 @@ from pygame.locals import *
 
 # custom scripts
 from board import Board, TILE_STATES, TILE_ACTIONS
-from settings import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SEVEN_SEGMENT_DISPLAY
+from settings import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SCREEN_FILL, MAX_SCREEN_RATIO, SEVEN_SEGMENT_DISPLAY
 
 pygame.font.init()
 
@@ -29,7 +29,7 @@ class MineSweeper:
 
         # set up screen and object sizes
         self.caption: str = "Minesweeper"
-        self.fps: int = 60
+        self.fps: int = 24
         self.clock = pygame.time.Clock()
         self.user = User()
 
@@ -38,6 +38,10 @@ class MineSweeper:
         # set up the board
         self.board = Board(width=width, height=height, mines=mines)    
         self.board.setup()
+
+        # set up variables to track time and current status
+        self.start_time: float | None = None
+        self.paused: bool = True  # used to pause inbetween games when we win or loose
         
         # load graphic resources
         self.tile_unchecked = None
@@ -52,7 +56,7 @@ class MineSweeper:
 
         # create screen
         self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height+HEADER_HEIGHT))
-        self.screen.fill(self.user.screen_fill)
+        self.screen.fill(SCREEN_FILL)
         pygame.display.flip()
         
     def main(self):
@@ -68,6 +72,16 @@ class MineSweeper:
             # quit the game
             if event.type == QUIT:
                 self.terminate_game()
+            
+            # save the game if we loose
+            if not self.board.valid and not self.paused:
+                self.paused = True
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), time.time()-self.start_time, False)
+
+            # save the game if we win
+            if self.board.user_won and not self.paused:
+                self.paused = True
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), time.time()-self.start_time, False)
             
             # get the current position of the mouse
             x, y = pygame.mouse.get_pos()
@@ -95,13 +109,20 @@ class MineSweeper:
                     center_y = HEADER_HEIGHT / 2
 
                     if sqrt((x - center_x)**2 + (y - center_y)**2) < radius:
+                        self.start_time = time.time()
                         self.board.setup()
+                        self.paused = False
 
             # when we release the button we will click any tile we are hovering over
             elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
                 if y > HEADER_HEIGHT:
                     row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
                     self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
+
+                    # if the game hasn't started yet (typically since we've just loaded the program), start it now
+                    if self.start_time is None:
+                        self.start_time = time.time()
+                        self.paused = False
                 else:
                     self.board.tile_action(TILE_ACTIONS[1])
 
@@ -123,7 +144,7 @@ class MineSweeper:
         self.clock.tick(self.fps)
 
     def draw_buttons(self):
-        pygame.draw.rect(self.screen, self.user.screen_fill, (0, 0, self.user.tile_size/self.board.width, HEADER_HEIGHT), 10)
+        pygame.draw.rect(self.screen, SCREEN_FILL, (0, 0, self.user.tile_size/self.board.width, HEADER_HEIGHT), 10)
         if not self.board.valid:
             button_width = self.new_game.get_width()
             button_height = self.new_game.get_height()
@@ -175,11 +196,11 @@ class MineSweeper:
         height = self.user.board_sizes[self.user.current_game]['height']
         mines = self.user.board_sizes[self.user.current_game]['mines']
 
-        if self.user.tile_size * width > SCREEN_SIZE[0] * self.user.max_screen_ratio:
-            self.user.tile_size = SCREEN_SIZE[0] * self.user.max_screen_ratio / width
+        if self.user.tile_size * width > SCREEN_SIZE[0] * MAX_SCREEN_RATIO:
+            self.user.tile_size = SCREEN_SIZE[0] * MAX_SCREEN_RATIO / width
 
-        if self.user.tile_size * height > SCREEN_SIZE[1] * self.user.max_screen_ratio:
-            self.user.tile_size = SCREEN_SIZE[1] * self.user.max_screen_ratio / height
+        if self.user.tile_size * height > SCREEN_SIZE[1] * MAX_SCREEN_RATIO:
+            self.user.tile_size = SCREEN_SIZE[1] * MAX_SCREEN_RATIO / height
 
         return width, height, mines
 

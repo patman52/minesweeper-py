@@ -10,7 +10,7 @@ MOUSE_RIGHT = 3
 
 SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
 SCREEN_FILL = (200, 200, 200)
-MAX_SCREEN_RATION = 0.7
+MAX_SCREEN_RATIO = 0.7
 
 # the colors for numbers showing the number of adjacent mines
 NUM_TEXT_COLOUR = {
@@ -60,23 +60,15 @@ SEVEN_SEGMENT_DISPLAY = {
 
 GAME_TYPES = ['easy', 'medium', 'hard', 'custom']
 
-# template to save previous game data
-SAVE_GAME = {
-    'type': '',
-    'date_played': '',
-    'play_time': 0.0,
-    'won': False
-}
-
 # default user and board settings
 DEFAULTS = {
     'tile_size': 40,
-    'last_game_played': 'medium',
+    'last_game_played': 'easy',
     'board_sizes': {
         'easy': {
             'width': 15,
             'height': 10,
-            'mines': 20
+            'mines': 10
         },
         'medium': {
             'width': 25,
@@ -116,14 +108,9 @@ class User:
     def _load_save_data(self):          
         if not os.path.isfile(SAVE_DATA_FILE):
             self._create_database()
-        #     with open(SAVE_DATA_FILE, 'w') as f:
-        #         f.write(json.dumps(DEFAULTS))
-        #     os.system("attrib +h {SAVE_DATA_FILE)")
-        
-        # with open(SAVE_DATA_FILE, 'r') as f:
-        #     data = json.load(f)
 
         self._load_user_settings()
+        self._load_game_data()
 
     def _create_database(self):
         con = sqlite3.connect(SAVE_DATA_FILE)
@@ -165,9 +152,9 @@ class User:
         output = cur.execute(sql)
         cols = [col[0] for col in output.description]
         data = output.fetchone()
-        self.tile_size = data[cols.index['Tile_Size']]
-        self.board_sizes = json.loads(cols.index['Board_Sizes'])
-        self.current_game = str(data[cols.index['Last_Game_Played']])
+        self.tile_size = data[cols.index('Tile_Size')]
+        self.board_sizes = json.loads(data[cols.index('Board_Sizes')])
+        self.current_game = str(data[cols.index('Last_Game_Played')])
         con.close()
 
     def _load_game_data(self):
@@ -183,14 +170,18 @@ class User:
             type = str(game[cols.index('Type')]) 
             if type not in GAME_TYPES:
                 raise ValueError(f'game type {type} not supported, must be {GAME_TYPES}')
-            self.game_history[type]['play_times'].append(float(game[cols.index['Play_Time']]))
+            self.game_history[type]['play_times'].append(float(game[cols.index('Play_Time')]))
             self.game_history[type]['total_games'] += 1
-            self.game_history[type['won']] += int(game[cols.index['Won']])
+            self.game_history[type]['won'] += int(game[cols.index('Won')])
 
     def save_game(self, type: str, date_played: str, play_time: float, win: bool):
+        print('saving game')
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
         sql = 'INSERT INTO GAME_DATA (Type, Date, Play_Time, Won) VALUES (?, ?, ?, ?)'
         cur.execute(sql, (type, date_played, play_time, int(win)))
         con.commit()
         con.close
+
+    def update_settings(self):
+        pass
