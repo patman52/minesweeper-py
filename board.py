@@ -39,7 +39,7 @@ class Board:
         self.height: int = height               # the height of the board in tiles
         self.mine_count: int = mines            # total count of mines
         self.tiles: list[int] = []              # a list of all tile objects
-        self.tiles_with_mines: list = []        # the tile ids that have mines
+        self.tiles_with_mines: list[int] = []   # the tile ids that have mines
         self.neighbors: dict[int: list] = {}    # maps tiles to their neighbors key = tile id / value = list of neighboring tiles
         self.valid = True                       # turns to false if a mine is clicked
         self.user_won = False                   # turns true when all mines have been correctly found!
@@ -54,14 +54,13 @@ class Board:
         """
         Start a new game board
         """
-        self.clear_board()
+        self._clear_board()
         self._create_tiles()
         self._assign_mines()
         self._map_neighbors()
         self.valid = True
-        print("board set up!")
 
-    def clear_board(self) -> None:
+    def _clear_board(self) -> None:
         """
         Clear the existing gameboard
         """
@@ -212,6 +211,9 @@ class Board:
 
         print(game_str)
     
+    def get_flagged_mine_count(self) -> int:
+        return len([mine_tile for mine_tile in self.tiles_with_mines if self.tiles[mine_tile].status == TILE_STATES[2]])
+
     def _create_tiles(self) -> None:
         """
         Creates all tile objects on the board

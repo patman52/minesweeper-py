@@ -19,13 +19,14 @@ from pygame.locals import *
 
 # custom scripts
 from board import Board, TILE_STATES, TILE_ACTIONS
-from settings import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SCREEN_FILL, MAX_SCREEN_RATIO, SEVEN_SEGMENT_DISPLAY
+# from settings import User, NUM_TEXT_COLOUR, SCREEN_SIZE, MOUSE_RIGHT, HEADER_HEIGHT, SCREEN_FILL, MAX_SCREEN_RATIO, SEGMENTS_TO_DISPLAY, SEGMENT_POSITION_SIZE, SEGMENT_WIDTH, COUNTER_WIDTH, COUNTER_HEIGHT, TOTAL_DIGIT_HEIGHT, DIGIT_GAP
+from settings import *
 
 pygame.font.init()
 
 
 class MineSweeper:
-    def __init__(self) -> None:
+    def __init__(self):
 
         # set up screen and object sizes
         self.caption: str = "Minesweeper"
@@ -41,6 +42,7 @@ class MineSweeper:
 
         # set up variables to track time and current status
         self.start_time: float | None = None
+        self.end_time: float | None = None
         self.paused: bool = True  # used to pause inbetween games when we win or loose
         
         # load graphic resources
@@ -76,12 +78,16 @@ class MineSweeper:
             # save the game if we loose
             if not self.board.valid and not self.paused:
                 self.paused = True
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), time.time()-self.start_time, False)
+                if self.end_time is None:
+                    self.end_time = time.time()-self.start_time
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), self.end_time, False)
 
             # save the game if we win
             if self.board.user_won and not self.paused:
                 self.paused = True
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), time.time()-self.start_time, False)
+                if self.end_time is None:
+                    self.end_time = time.time()-self.start_time
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), self.end_time, False)
             
             # get the current position of the mouse
             x, y = pygame.mouse.get_pos()
@@ -132,6 +138,7 @@ class MineSweeper:
 
     def update_display(self):
         self.draw_buttons()
+        self.draw_counters()
         self.draw_tiles()
         # check for end game
         if not self.board.valid:
@@ -139,12 +146,11 @@ class MineSweeper:
             self.draw_message("GAME OVER!!")
         if self.board.user_won:
             self.draw_tiles()
-            self.draw_message("GAME OVER!!")
+            self.draw_message("YOU WON!!")
         pygame.display.update()
         self.clock.tick(self.fps)
 
     def draw_buttons(self):
-        pygame.draw.rect(self.screen, SCREEN_FILL, (0, 0, self.user.tile_size/self.board.width, HEADER_HEIGHT), 10)
         if not self.board.valid:
             button_width = self.new_game.get_width()
             button_height = self.new_game.get_height()
@@ -159,6 +165,60 @@ class MineSweeper:
             button_width = self.game_over.get_width()
             button_height = self.game_over.get_height()
             self.screen.blit(self.new_game, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+
+    def draw_counters(self):
+        # first draw the counter with the remaining mines
+        mines_remaining = str(len(self.board.tiles_with_mines) - self.board.get_flagged_mine_count()).zfill(3)
+        mine_count_pos_x = self.screen.get_width()/2-self.user.tile_size-COUNTER_WIDTH
+        mines_rect = pygame.Rect(mine_count_pos_x, HEADER_HEIGHT*0.1, COUNTER_WIDTH, COUNTER_HEIGHT)
+        remaining_mines_bg = pygame.draw.rect(self.screen, (0, 0, 0), mines_rect)
+        time_count_pos_x = self.screen.get_width()/2+self.user.tile_size
+        time_rect = pygame.Rect(time_count_pos_x, HEADER_HEIGHT*0.1, COUNTER_WIDTH, COUNTER_HEIGHT)
+        time_bg = pygame.draw.rect(self.screen, (0, 0, 0), time_rect)
+        # pygame.display.flip()
+
+        for digit_index, digit in enumerate(mines_remaining):
+            segs_to_display = SEGMENTS_TO_DISPLAY[int(digit)]
+            # segs_to_display = [True, True, True, True]
+            for seg_index, seg in enumerate(segs_to_display):
+                if not seg:
+                    continue
+                base_x = mine_count_pos_x + (COUNTER_WIDTH - TOTAL_DIGIT_WIDTH*3 - DIGIT_GAP*2)/2 + digit_index*(TOTAL_DIGIT_WIDTH+DIGIT_GAP)
+                base_y = (HEADER_HEIGHT - TOTAL_DIGIT_HEIGHT)/2
+
+                seg_x, seg_y, rotate = SEGMENT_POSITION_SIZE[seg_index]
+
+                if rotate:
+                    image = self.segment_display_rot
+                else:
+                    image = self.segment_display
+                
+                self.screen.blit(image, (seg_x+base_x, seg_y+base_y))
+
+        if self.start_time is None:
+            current_game_time = '000'
+        elif self.board.user_won and self.end_time is not None:
+            current_game_time = str(self.end_time).zfill(3)
+        else:
+            current_game_time = str(round(time.time() - self.start_time)).zfill(3)
+
+        for digit_index, digit in enumerate(current_game_time):
+            segs_to_display = SEGMENTS_TO_DISPLAY[int(digit)]
+            # segs_to_display = [True, True, True, True]
+            for seg_index, seg in enumerate(segs_to_display):
+                if not seg:
+                    continue
+                base_x = time_count_pos_x + (COUNTER_WIDTH - TOTAL_DIGIT_WIDTH*3 - DIGIT_GAP*2)/2 + digit_index*(TOTAL_DIGIT_WIDTH+DIGIT_GAP)
+                base_y = (HEADER_HEIGHT - TOTAL_DIGIT_HEIGHT)/2
+
+                seg_x, seg_y, rotate = SEGMENT_POSITION_SIZE[seg_index]
+
+                if rotate:
+                    image = self.segment_display_rot
+                else:
+                    image = self.segment_display
+                
+                self.screen.blit(image, (seg_x+base_x, seg_y+base_y))
 
     def draw_tiles(self): 
         for tile in self.board.tiles:
@@ -212,13 +272,17 @@ class MineSweeper:
         self.new_game = self._scale_resource(pygame.image.load('resources/new_game.png'))
         self.new_game_tile_pressed = self._scale_resource(pygame.image.load('resources/tile_pressed.png'))
         self.game_over = self._scale_resource(pygame.image.load('resources/game_over.png'))
-        self.segment_display = self._scale_resource(pygame.image.load('resources/segment_display.png'))
+        self.segment_display = self._scale_resource(pygame.image.load('resources/segment_display.png'), target_width=SEGMENT_WIDTH)
+        self.segment_display_rot = pygame.transform.rotate(self.segment_display, 90.0)
         self.mine = self._scale_resource(pygame.image.load('resources/mine.png'), scaling=0.8)
 
-    def _scale_resource(self, image: pygame.image, scaling: float = 1.0):
+    def _scale_resource(self, image: pygame.image, scaling: float = 1.0, target_width: None | float = None):
         width = image.get_width()
         height = image.get_height()
-        ratio = self.user.tile_size / width
+        if target_width is None:
+            ratio = self.user.tile_size / width
+        else:
+            ratio = target_width / width
         image = pygame.transform.scale(image, (width*ratio*scaling, height*ratio*scaling))
         return image
 
@@ -234,15 +298,17 @@ class MineSweeper:
         """
         return (int((mouse_pos[1] - HEADER_HEIGHT) // self.user.tile_size), int(mouse_pos[0] // self.user.tile_size))
 
-    def draw_message(self, message):
+    def draw_message(self, message: str, text_size: int = 44, text_color: tuple = (0, 0, 0)):
         """
         Draws message to the screen. 
         """
-        self.message = True
-        self.font_obj = pygame.font.Font('freesansbold.ttf', 44)
-        self.text_surface_obj = self.font_obj.render(message, True, (0, 0, 0))
-        self.text_rect_obj = self.text_surface_obj.get_rect()
-        self.text_rect_obj.center = (self.user.tile_size*self.board.width >> 1, self.user.tile_size*self.board.height >> 1)
+        font_obj = pygame.font.Font('freesansbold.ttf', text_size)
+        text_surface_obj = font_obj.render(message, True, text_color)
+        text_width = text_surface_obj.get_width()
+        x = (self.screen.get_width()-text_width)/2
+        y = (self.screen.get_height()-text_size)/2
+        self.screen.blit(text_surface_obj, (x, y))
+
 	
     def terminate_game(self):
         """Quits the program and ends the game."""
@@ -279,7 +345,6 @@ def text_version(width=25, height=10, mines=50):
         if not board.valid:
             print("YOU HAVE CLICKED A MINE!")
             break
-
 
 
 if __name__ == "__main__":

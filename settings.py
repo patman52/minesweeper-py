@@ -1,6 +1,5 @@
 
 import ctypes
-import datetime
 import json
 import os
 import sqlite3
@@ -25,7 +24,7 @@ NUM_TEXT_COLOUR = {
 }
 
 # path to save database
-SAVE_DATA_FILE = r'game data.db'
+SAVE_DATA_FILE = 'game data.db'
 
 # height of the header containing the new game buttons, counters, and settings button
 HEADER_HEIGHT = 70
@@ -45,17 +44,38 @@ TILE_MAX = 80
      d
 """
 
-SEVEN_SEGMENT_DISPLAY = {
-    0: '1111110',
-    1: '0110000',
-    2: '1101101',
-    3: '1111001',
-    4: '0110011',
-    5: '1011011',
-    6: '1011111',
-    7: '1110000',
-    8: '1111111',
-    9: '1111011'
+
+SEGMENTS_TO_DISPLAY = {
+    # digit: list of whether the segment is on or off [a, b, c, d, e, f, g]
+    0: [True, True, True, True, True, True, False],
+    1: [False, True, True, False, False, False, False],
+    2: [True, True, False, True, True, False, True],
+    3: [True, True, True, True, False, False, True],
+    4: [False, True, True, False, False, True, True],
+    5: [True, False, True, True, False, True, True],
+    6: [True, False, True, True, True, True, True],
+    7: [True, True, True, False, False, False, False],
+    8: [True, True, True, True, True, True, True],
+    9: [True, True, True, True, False, True, True]
+}
+
+COUNTER_WIDTH = 100
+COUNTER_HEIGHT = HEADER_HEIGHT*0.8
+SEGMENT_WIDTH = COUNTER_WIDTH*0.2
+SEGMENT_GAP = SEGMENT_WIDTH*0.15
+DIGIT_GAP = 5
+TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
+TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
+
+SEGMENT_POSITION_SIZE = {
+    # segement_index: [x, y, rotate (true or false)]
+    0: [SEGMENT_GAP, 0, False],
+    1: [SEGMENT_WIDTH + SEGMENT_GAP, SEGMENT_GAP, True],
+    2: [SEGMENT_WIDTH + SEGMENT_GAP, SEGMENT_WIDTH + SEGMENT_GAP*2, True],
+    3: [SEGMENT_GAP, (SEGMENT_WIDTH + SEGMENT_GAP)*2, False],
+    4: [0, SEGMENT_WIDTH + SEGMENT_GAP*2, True],
+    5: [0, SEGMENT_GAP, True],
+    6: [SEGMENT_GAP, SEGMENT_WIDTH + SEGMENT_GAP, False]
 }
 
 GAME_TYPES = ['easy', 'medium', 'hard', 'custom']
@@ -86,7 +106,6 @@ DEFAULTS = {
             'mines': 100 
         }
     },
-    'game_history': [] # list of games and associated data
 }
 
 
