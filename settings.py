@@ -10,6 +10,7 @@ MOUSE_RIGHT = 3
 SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
 SCREEN_FILL = (200, 200, 200)
 MAX_SCREEN_RATIO = 0.7
+DISPLAYS = ['game', 'settings']
 
 # the colors for numbers showing the number of adjacent mines
 NUM_TEXT_COLOUR = {
@@ -44,7 +45,6 @@ TILE_MAX = 80
      d
 """
 
-
 SEGMENTS_TO_DISPLAY = {
     # digit: list of whether the segment is on or off [a, b, c, d, e, f, g]
     0: [True, True, True, True, True, True, False],
@@ -66,6 +66,7 @@ SEGMENT_GAP = SEGMENT_WIDTH*0.15
 DIGIT_GAP = 5
 TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
 TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
+SETTINGS_BTN_PADX = 20
 
 SEGMENT_POSITION_SIZE = {
     # segement_index: [x, y, rotate (true or false)]
@@ -192,6 +193,8 @@ class User:
             self.game_history[type]['play_times'].append(float(game[cols.index('Play_Time')]))
             self.game_history[type]['total_games'] += 1
             self.game_history[type]['won'] += int(game[cols.index('Won')])
+
+        print('finished!')
 
     def save_game(self, type: str, date_played: str, play_time: float, win: bool):
         print('saving game')

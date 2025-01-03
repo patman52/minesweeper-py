@@ -8,6 +8,7 @@ Author P Tunis 12/2024
 
 # standard libraries
 import datetime
+import statistics
 import time
 from math import sqrt
 from typing import Tuple
@@ -24,7 +25,6 @@ from settings import *
 
 pygame.font.init()
 
-
 class MineSweeper:
     def __init__(self):
 
@@ -40,9 +40,13 @@ class MineSweeper:
         self.board = Board(width=width, height=height, mines=mines)    
         self.board.setup()
 
+        # current display (either the game or the settings windows)
+        self.current_display = DISPLAYS[0]
+
         # set up variables to track time and current status
-        self.start_time: float | None = None
-        self.end_time: float | None = None
+        self.start_time: float = 0.0
+        self.current_game_time: float = 0.0
+        self.game_started = False
         self.paused: bool = True  # used to pause inbetween games when we win or loose
         
         # load graphic resources
@@ -50,7 +54,9 @@ class MineSweeper:
         self.tile_checked = None
         self.tile_flagged = None
         self.tile_question = None
+        self.tile_mine_checked = None
         self.mine = None
+        self.settings_button = None
         self.new_game = None
         self.game_over = None
         self.segment_display = None
@@ -60,7 +66,20 @@ class MineSweeper:
         self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height+HEADER_HEIGHT))
         self.screen.fill(SCREEN_FILL)
         pygame.display.flip()
+
+        """
+        button info for interacting with the new game and settings buttons since they are circles
         
+        finding if a point is in a circle
+        (x - center_x)² + (y - center_y)² < radius².
+        """
+        self.new_game_btn_radius = self.new_game.get_width() / 2
+        self.new_game_btn_center_x = self.screen.get_width() / 2
+        self.new_game_btn_center_y = HEADER_HEIGHT / 2
+        self.settings_btn_radious = self.settings_button.get_width() / 2
+        self.settings_btn_center_x = SETTINGS_BTN_PADX + self.settings_btn_radious
+        self.settings_btn_center_y = HEADER_HEIGHT / 2
+
     def main(self):
         self.setup_window()
 
@@ -69,25 +88,31 @@ class MineSweeper:
             self.update_display()
 
     def event_loop(self):
+        if not self.board.user_won and self.board.valid and not self.paused:
+            self.current_game_time = time.time() - self.start_time
 
         for event in pygame.event.get():
             # quit the game
             if event.type == QUIT:
                 self.terminate_game()
-            
+
+            # events for the main game board
+            if self.current_display == DISPLAYS[0]:
+                self.game_events(event)
+
+            elif self.current_display == DISPLAYS[1]:
+                pass
+
+    def game_events(self, event):
             # save the game if we loose
             if not self.board.valid and not self.paused:
                 self.paused = True
-                if self.end_time is None:
-                    self.end_time = time.time()-self.start_time
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), self.end_time, False)
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, False)
 
             # save the game if we win
             if self.board.user_won and not self.paused:
                 self.paused = True
-                if self.end_time is None:
-                    self.end_time = time.time()-self.start_time
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%d-%m-%Y'), self.end_time, False)
+                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, True)
             
             # get the current position of the mouse
             x, y = pygame.mouse.get_pos()
@@ -104,21 +129,16 @@ class MineSweeper:
                     row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
                     self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
                 else:
-                    """
-                    determine if the click is on the new game / game over button which isa circle
-                    
-                    finding if a point is in a circle
-                    (x - center_x)² + (y - center_y)² < radius².
-                    """
-                    radius = self.new_game.get_width() / 2
-                    center_x = self.user.tile_size * self.board.width / 2
-                    center_y = HEADER_HEIGHT / 2
-
-                    if sqrt((x - center_x)**2 + (y - center_y)**2) < radius:
+                    # check if it's in the circle for the new game button
+                    if self._determine_point_in_circle(self.new_game_btn_center_x, self.new_game_btn_center_y, self.new_game_btn_radius, x, y):
                         self.start_time = time.time()
                         self.board.setup()
                         self.paused = False
-
+                    # check if it's in the circle for the settings / stat screen
+                    elif self._determine_point_in_circle(self.settings_btn_center_x, self.settings_btn_center_y, self.settings_btn_radious, x, y):
+                        print('changing to the settings / stats screen')
+                        self.current_display = DISPLAYS[1]
+                    
             # when we release the button we will click any tile we are hovering over
             elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
                 if y > HEADER_HEIGHT:
@@ -126,45 +146,60 @@ class MineSweeper:
                     self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
 
                     # if the game hasn't started yet (typically since we've just loaded the program), start it now
-                    if self.start_time is None:
+                    if self.paused:
                         self.start_time = time.time()
                         self.paused = False
                 else:
                     self.board.tile_action(TILE_ACTIONS[1])
+                    self.user._load_game_data()
+
+    def _determine_point_in_circle(self, circle_center_x: float, circle_center_y: float, circle_rad: float, x: float, y: float) -> bool:
+        return sqrt((x - circle_center_x)**2 + (y - circle_center_y)**2) < circle_rad
 
     def setup_window(self):
         pygame.init()
         pygame.display.set_caption(self.caption)
 
     def update_display(self):
-        self.draw_buttons()
-        self.draw_counters()
-        self.draw_tiles()
-        # check for end game
-        if not self.board.valid:
-            self.draw_mines()
-            self.draw_message("GAME OVER!!")
-        if self.board.user_won:
+        if self.current_display == DISPLAYS[0]:
+            self.draw_buttons()
+            self.draw_counters()
             self.draw_tiles()
-            self.draw_message("YOU WON!!")
+            # check for end game
+            if not self.board.valid:
+                self.draw_mines()
+            if self.board.user_won:
+                self.draw_tiles()
+                self.draw_message("YOU WON!!")
+        elif self.current_display == DISPLAYS[1]:
+            self.screen.fill(SCREEN_FILL)
+            self.draw_stats()      
+        else:
+            raise ValueError(f'current display must be {DISPLAYS}')
+        
         pygame.display.update()
         self.clock.tick(self.fps)
 
     def draw_buttons(self):
+        # draw the button to access the settings
+        settings_btn_height = self.settings_button.get_height()
+        self.screen.blit(self.settings_button, (SETTINGS_BTN_PADX, (HEADER_HEIGHT-settings_btn_height)/2))
+
+        # draw the smiley face
         if not self.board.valid:
             button_width = self.new_game.get_width()
             button_height = self.new_game.get_height()
-            self.screen.blit(self.game_over, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+            self.screen.blit(self.game_over, ((self.screen.get_width() - button_width)/2, (HEADER_HEIGHT-button_height)/2))
             return
         
         if self.board.tile_pressed:
             button_width = self.game_over.get_width()
             button_height = self.game_over.get_height()
-            self.screen.blit(self.new_game_tile_pressed, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+            self.screen.blit(self.new_game_tile_pressed, ((self.screen.get_width() - button_width)/2, (HEADER_HEIGHT-button_height)/2))
         else:
             button_width = self.game_over.get_width()
             button_height = self.game_over.get_height()
-            self.screen.blit(self.new_game, (self.board.width*self.user.tile_size/2-button_width/2, (HEADER_HEIGHT-button_height)/2))
+            self.screen.blit(self.new_game, ((self.screen.get_width() - button_width)/2, (HEADER_HEIGHT-button_height)/2))
 
     def draw_counters(self):
         # first draw the counter with the remaining mines
@@ -196,13 +231,11 @@ class MineSweeper:
                 self.screen.blit(image, (seg_x+base_x, seg_y+base_y))
 
         if self.start_time is None:
-            current_game_time = '000'
-        elif self.board.user_won and self.end_time is not None:
-            current_game_time = str(self.end_time).zfill(3)
+            current_game_time_str = '000'
         else:
-            current_game_time = str(round(time.time() - self.start_time)).zfill(3)
+            current_game_time_str = str(round(self.current_game_time)).zfill(3)
 
-        for digit_index, digit in enumerate(current_game_time):
+        for digit_index, digit in enumerate(current_game_time_str):
             segs_to_display = SEGMENTS_TO_DISPLAY[int(digit)]
             # segs_to_display = [True, True, True, True]
             for seg_index, seg in enumerate(segs_to_display):
@@ -230,7 +263,10 @@ class MineSweeper:
                     resource = self.tile_unchecked
                 self.screen.blit(resource, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
             elif tile.status == TILE_STATES[1]:
-                self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                if tile.mine:
+                    self.screen.blit(self.tile_mine_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                else:
+                    self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
                 if tile.adjacent_mines > 0:
                     mine_num = pygame.font.SysFont('Times New Roman', int(self.user.tile_size*0.8))
                     text_surface = mine_num.render(str(tile.adjacent_mines), False, NUM_TEXT_COLOUR[tile.adjacent_mines])
@@ -242,13 +278,38 @@ class MineSweeper:
             elif tile.status == TILE_STATES[3]:
                 self.screen.blit(self.tile_question, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
 
-
     def draw_mines(self):
         for tile in self.board.tiles:
             if tile.mine:
                 mine_x = tile.col*self.user.tile_size + (self.user.tile_size - self.mine.get_width())/2
                 mine_y = tile.row*self.user.tile_size + (self.user.tile_size - self.mine.get_height())/2 + HEADER_HEIGHT
                 self.screen.blit(self.mine, (mine_x, mine_y))
+                continue
+            
+            # draw and X on any tiles that were flagged as mines and not actually mines
+            if tile.status == TILE_STATES[2] and not tile.mine:
+                x_mark = pygame.font.SysFont('Arial', int(self.user.tile_size*0.8))
+                text_surface = x_mark.render('X', False, (0, 0, 0))
+                text_x = tile.col*self.user.tile_size + (self.user.tile_size - text_surface.get_width())/2
+                text_y = tile.row*self.user.tile_size + self.user.tile_size*0.05 + HEADER_HEIGHT
+                self.screen.blit(text_surface, (text_x, text_y))
+
+    def draw_stats(self):
+        x_pos = 40
+        y_pos= HEADER_HEIGHT + 20
+
+        for i, (game_type, data) in enumerate(self.user.game_history.items()):
+        
+            ave_play_time = round(statistics.mean(data['play_times'])/60, 1) if len(data['play_times']) > 0 else 0.0
+            win_ratio = data['won'] / data['total_games'] if data['total_games'] > 0 else 0.0
+            
+            message = f'{game_type}: won = {data['won']}, total games = {data['total_games']} ratio = {win_ratio}, ave play time (min) = {ave_play_time}'
+            font_obj = pygame.font.Font('freesansbold.ttf', 20)
+            text_surface_obj = font_obj.render(message, True, (0, 0, 0))
+            x = x_pos
+            y = y_pos + i*30
+            self.screen.blit(text_surface_obj, (x, y))
+
 
     def _determine_screen_board_size(self):
         # get the size of the users screen
@@ -269,6 +330,8 @@ class MineSweeper:
         self.tile_checked = self._scale_resource(pygame.image.load('resources/tile_checked.png'))
         self.tile_flagged = self._scale_resource(pygame.image.load('resources/tile_flagged.png'))
         self.tile_question = self._scale_resource(pygame.image.load('resources/tile_question.png'))
+        self.tile_mine_checked = self._scale_resource(pygame.image.load('resources/tile_mine_checked.png'))
+        self.settings_button = self._scale_resource(pygame.image.load('resources/settings.png'), scaling=0.9)
         self.new_game = self._scale_resource(pygame.image.load('resources/new_game.png'))
         self.new_game_tile_pressed = self._scale_resource(pygame.image.load('resources/tile_pressed.png'))
         self.game_over = self._scale_resource(pygame.image.load('resources/game_over.png'))
@@ -308,7 +371,6 @@ class MineSweeper:
         x = (self.screen.get_width()-text_width)/2
         y = (self.screen.get_height()-text_size)/2
         self.screen.blit(text_surface_obj, (x, y))
-
 	
     def terminate_game(self):
         """Quits the program and ends the game."""
