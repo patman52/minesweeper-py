@@ -1,4 +1,11 @@
+"""
+board.py
 
+Contains the code for the Board class which tracks tile status, mines, adjacent mines, etc.
+
+Author Paul Archer Tunis
+
+"""
 import random
 
 # used to find neighboring tile ids

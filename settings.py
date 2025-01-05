@@ -1,3 +1,11 @@
+"""
+settings.py
+
+Contains settings, defaults and constants for minesweeper.py, controls user data and saving game data to external sqlite database
+
+Author Paul Archer Tunis
+
+"""
 
 import ctypes
 import json
@@ -42,7 +50,7 @@ TILE_MAX = 80
    e|  |c
     |  |
     ____
-     d
+    d
 """
 
 SEGMENTS_TO_DISPLAY = {
@@ -67,6 +75,8 @@ DIGIT_GAP = 5
 TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
 TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
 SETTINGS_BTN_PADX = 20
+CHANGE_SETTINGS_WIDTH = 220
+BUTTON_SHAPES = ['rect', 'cir']
 
 SEGMENT_POSITION_SIZE = {
     # segement_index: [x, y, rotate (true or false)]
@@ -160,14 +170,12 @@ class User:
         ); """
 
         cur.execute(game_save_data_sql)
-
         con.commit()
         con.close()
 
     def _load_user_settings(self):
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
-
         sql = 'SELECT * FROM SETTINGS'
         output = cur.execute(sql)
         cols = [col[0] for col in output.description]
@@ -194,10 +202,7 @@ class User:
             self.game_history[type]['total_games'] += 1
             self.game_history[type]['won'] += int(game[cols.index('Won')])
 
-        print('finished!')
-
     def save_game(self, type: str, date_played: str, play_time: float, win: bool):
-        print('saving game')
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
         sql = 'INSERT INTO GAME_DATA (Type, Date, Play_Time, Won) VALUES (?, ?, ?, ?)'
@@ -205,5 +210,16 @@ class User:
         con.commit()
         con.close
 
+    def reset_stats(self):
+        """
+        Deletes all saved game data
+        """
+        con = sqlite3.connect(SAVE_DATA_FILE)
+        cur = con.cursor()
+        cur.execute('DELETE FROM GAME_DATA')
+        con.commit()
+        con.close()
+
     def update_settings(self):
         pass
+
