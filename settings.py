@@ -11,12 +11,15 @@ import ctypes
 import json
 import os
 import sqlite3
+from statistics import mean
 
 MOUSE_LEFT = 1
 MOUSE_RIGHT = 3
 
 SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
 SCREEN_FILL = (200, 200, 200)
+SETTING_FILL = (255, 255, 255)
+SETTINGS_INSET = 10
 MAX_SCREEN_RATIO = 0.7
 DISPLAYS = ['game', 'settings']
 
@@ -76,7 +79,6 @@ TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
 TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
 SETTINGS_BTN_PADX = 20
 CHANGE_SETTINGS_WIDTH = 220
-BUTTON_SHAPES = ['rect', 'cir']
 
 SEGMENT_POSITION_SIZE = {
     # segement_index: [x, y, rotate (true or false)]
@@ -129,7 +131,7 @@ class User:
         self.board_sizes: dict = {}
         self.current_game: str = ''
         self.game_history: dict = {
-            game_type: {'play_times': [], 'total_games': 0, 'won': 0} for game_type in GAME_TYPES
+            game_type: {'play_times': [], 'total_games': 0, 'won': 0, 'ave_playtime': 0.0, 'ratio': 0.0} for game_type in GAME_TYPES
         }
 
         # initialize user data
@@ -203,6 +205,10 @@ class User:
             self.game_history[type]['won'] += int(game[cols.index('Won')])
 
     def save_game(self, type: str, date_played: str, play_time: float, win: bool):
+        self.game_history[type]['play_time'].append(play_time)
+        self.game_history[type]['total_games'] += 1
+        self.game_history[type]['win'] += int(win)
+        self.get_calc_stats()
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
         sql = 'INSERT INTO GAME_DATA (Type, Date, Play_Time, Won) VALUES (?, ?, ?, ?)'
@@ -214,11 +220,19 @@ class User:
         """
         Deletes all saved game data
         """
+        self.game_history: dict = {
+            game_type: {'play_times': [], 'total_games': 0, 'won': 0, 'ave_playtime': 0.0, 'ratio': 0.0} for game_type in GAME_TYPES
+        }
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
         cur.execute('DELETE FROM GAME_DATA')
         con.commit()
         con.close()
+
+    def get_calc_stats(self):
+        for type, game_data in self.game_history.items():
+            game_data['ave_playtime'] = mean(game_data['play_times']) if len(game_data['play_times']) > 0 else 0.0
+            game_data['ratio'] = game_data['won'] / game_data['total_games'] if game_data['total_games'] > 0 else 0.0
 
     def update_settings(self):
         pass

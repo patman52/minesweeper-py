@@ -8,21 +8,21 @@ Author Paul Archer Tunis
 
 # standard libraries
 import datetime
-import statistics
 import time
-from math import sqrt
+import sys
 from typing import Tuple, Optional
 
 # external dependencies
-import pygame, sys
+import pygame
 from pygame.locals import *
 
 # custom scripts
-from board import Board, TILE_STATES, TILE_ACTIONS
-from button import Button
+from board import Board, TILE_STATES, TILE_ACTIONS, MAX_WIDTH, MAX_HEIGHT, MAX_MINE_SHARE
+from button import Button, BUTTON_SHAPES
 from settings import *
 
 pygame.font.init()
+
 
 class MineSweeper:
     def __init__(self):
@@ -40,16 +40,18 @@ class MineSweeper:
         self.board.setup()
 
         # current display (either the game or the settings windows)
-        self.current_display = DISPLAYS[0]
+        self.current_display: str = DISPLAYS[0]
 
         # set up variables to track time and current status
         self.start_time: float = 0.0
         self.current_game_time: float = 0.0
-        self.game_started = False
+        self.game_started: bool = False
         self.paused: bool = True  # used to pause inbetween games when we win or loose
         
         # ties buttons to images, positions, etc.
         self.button_mapping: dict[str: Button] = {}
+        self.return_pressed: bool = False
+        self.reset_pressed: bool = True
         
         # load graphic resources
         self.tile_unchecked = None
@@ -94,102 +96,123 @@ class MineSweeper:
                 self.settings_event(event)
 
     def game_event(self, event):
-            # save the game if we loose
-            if not self.board.valid and not self.paused:
-                self.paused = True
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, False)
+        # save the game if we loose
+        if not self.board.valid and not self.paused:
+            self.paused = True
+            self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, False)
 
-            # save the game if we win
-            if self.board.user_won and not self.paused:
-                self.paused = True
-                self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, True)
-            
-            # get the current position of the mouse
-            x, y = pygame.mouse.get_pos()
+        # save the game if we win
+        if self.board.user_won and not self.paused:
+            self.paused = True
+            self.user.save_game(self.user.current_game,datetime.datetime.today().strftime('%M-%D-%Y'), self.current_game_time, True)
+        
+        # get the current position of the mouse
+        x, y = pygame.mouse.get_pos()
 
-            # flag the tile
-            if event.type == MOUSEBUTTONDOWN and event.button == MOUSE_RIGHT and y > HEADER_HEIGHT:
+        # flag the tile
+        if event.type == MOUSEBUTTONDOWN and event.button == MOUSE_RIGHT and y > HEADER_HEIGHT:
+            row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
+            self.board.tile_action(action=TILE_ACTIONS[3], row=row, col=col)
+            return
+
+        # when we click down on the tile, and hold it, it will be 'pressed'
+        if pygame.mouse.get_pressed()[0]:
+            if y > HEADER_HEIGHT:
                 row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
-                self.board.tile_action(action=TILE_ACTIONS[3], row=row, col=col)
-                return
+                self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
+            else:
+                # check if it's in the circle for the new game button
+                if self.button_mapping['new_game'].check_pressed((x, y)):
+                    self.start_time = time.time()
+                    self.board.setup()
+                    self.paused = False
+                # check if it's in the circle for the settings / stat screen
+                elif self.button_mapping['open_settings'].check_pressed((x, y)):
+                    print('changing to the settings / stats screen')
+                    self.user.get_calc_stats()
+                    self.current_display = DISPLAYS[1]
+                
+        # when we release the button we will click any tile we are hovering over
+        elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
+            if y > HEADER_HEIGHT:
+                row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
+                self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
 
-            # when we click down on the tile, and hold it, it will be 'pressed'
-            if pygame.mouse.get_pressed()[0]:
-                if y > HEADER_HEIGHT:
-                    row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
-                    self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
-                else:
-                    # check if it's in the circle for the new game button
-                    if self.button_mapping['new_game'].check_pressed((x, y)):
-                        self.start_time = time.time()
-                        self.board.setup()
-                        self.paused = False
-                    # check if it's in the circle for the settings / stat screen
-                    elif self.button_mapping['open_settings'].check_pressed((x, y)):
-                        print('changing to the settings / stats screen')
-                        self.current_display = DISPLAYS[1]
-                    
-            # when we release the button we will click any tile we are hovering over
-            elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
-                if y > HEADER_HEIGHT:
-                    row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
-                    self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
+                # if the game hasn't started yet (typically since we've just loaded the program), start it now
+                if self.paused:
+                    self.start_time = time.time()
+                    self.paused = False
+            else:
+                self.board.tile_action(TILE_ACTIONS[1])
+                self.user._load_game_data()
 
-                    # if the game hasn't started yet (typically since we've just loaded the program), start it now
-                    if self.paused:
-                        self.start_time = time.time()
-                        self.paused = False
-                else:
-                    self.board.tile_action(TILE_ACTIONS[1])
-                    self.user._load_game_data()
+        self.button_mapping['new_game'].pressed = self.board.tile_pressed
 
     def settings_event(self, event):
         # get the current position of the mouse
         x, y = pygame.mouse.get_pos()
+
+        # check if we pressed either the return or reset stat button
+        if pygame.mouse.get_pressed()[0]:
+            if self.button_mapping['return'].check_pressed((x, y)):
+                self.return_pressed = True
+            else:
+                self.return_pressed = False
+            if self.button_mapping['reset_stats'].check_pressed((x, y)):
+                self.reset_pressed = True
+            else:
+                self.reset_pressed = False
+        elif event.type == MOUSEBUTTONUP:
+            if self.button_mapping['return'].check_pressed((x, y)) and self.return_pressed:
+                print('returning to game screen')
+                self.return_pressed = False
+                self.current_display = DISPLAYS[0]
+            if self.button_mapping['reset_stats'].check_pressed((x, y)) and self.reset_pressed:
+                print('reseting all game stats')
+                # self.user.reset_stats()
+
+        else:
+            self.button_mapping['return'].pressed = False
+            self.button_mapping['reset_stats'].pressed = False
+
 
     def setup_window(self):
         pygame.init()
         pygame.display.set_caption(self.caption)
 
     def update_display(self):
-        if self.current_display == DISPLAYS[0]:
-            self.draw_buttons()
-            self.draw_counters()
-            self.draw_tiles()
-            # check for end game
-            if not self.board.valid:
-                self.draw_mines()
-            if self.board.user_won:
-                self.draw_tiles()
-                self.draw_message("YOU WON!!", )
-        elif self.current_display == DISPLAYS[1]:           
-            self.draw_settings_layout()
-            self.draw_buttons()
-            # self.draw_stats()      
-        else:
-            raise ValueError(f'current display must be {DISPLAYS}')
-        
+        self.draw_layout()
+        self.draw_stats()
+        self.draw_buttons()
+        self.draw_counters()
+        self.draw_tiles()   
+        self.draw_mines()    
+        if self.board.user_won:
+            self.draw_text('YOU WON!!!', text_pos=(self.screen.get_width()/2, self.screen.get_height()/2), text_size=60)
         pygame.display.update()
         self.clock.tick(self.fps)
 
     def draw_buttons(self):
-        if self.current_display == DISPLAYS[0]:
-            # draw the button to access the settings
-            self.screen.blit(self.button_mapping['open_settings'].image_normal, self.button_mapping['open_settings'].pos)
+        for button_name, button in self.button_mapping.items():
+            if button.display != self.current_display:
+                continue
 
-            # draw the smiley face
             if not self.board.valid:
-                self.screen.blit(self.button_mapping['new_game'].image_secondary, self.button_mapping['new_game'].pos)        
-            elif self.board.tile_pressed:
-                self.screen.blit(self.button_mapping['new_game'].image_pressed, self.button_mapping['new_game'].pos)
+                image = button.image_game_over
+            elif button.pressed:
+                image = button.image_pressed
             else:
-                self.screen.blit(self.button_mapping['new_game'].image_normal, self.button_mapping['new_game'].pos)
-        elif self.current_display == DISPLAYS[1]:
-            pass
-        else:
-            ValueError(f'current display not correctly initialized, must be {DISPLAYS}')
+                image = button.image_normal
+            self.screen.blit(image, button.pos)
+
+            if button.text_to_display is not None:
+                self.draw_text(button.text_to_display, text_size=button.text_size, bounding_box=button.get_bounding_box())
 
     def draw_counters(self):
+        # don't draw counters for settings menu
+        if self.current_display == DISPLAYS[1]:
+            return
+        
         # first draw the counter with the remaining mines
         mines_remaining = str(len(self.board.tiles_with_mines) - self.board.get_flagged_mine_count()).zfill(3)
         mine_count_pos_x = self.screen.get_width()/2-self.user.tile_size-COUNTER_WIDTH
@@ -242,6 +265,10 @@ class MineSweeper:
                 self.screen.blit(image, (seg_x+base_x, seg_y+base_y))
 
     def draw_tiles(self): 
+        # don't draw tiles for settings menu
+        if self.current_display == DISPLAYS[1]:
+            return
+
         for tile in self.board.tiles:
             # first, determine what resource to display based on the tile status
             if tile.status == TILE_STATES[0]:
@@ -267,6 +294,10 @@ class MineSweeper:
                 self.screen.blit(self.tile_question, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
 
     def draw_mines(self):
+        if self.current_display == DISPLAYS[1]:
+            return
+        if self.board.valid:
+            return
         for tile in self.board.tiles:
             if tile.mine:
                 mine_x = tile.col*self.user.tile_size + (self.user.tile_size - self.mine.get_width())/2
@@ -281,36 +312,30 @@ class MineSweeper:
 
                 self.draw_text('X', text_size=int(self.user.tile_size*0.8), text_pos=(text_x, text_y), font='Arial')
 
-    def draw_settings_layout(self):
+    def draw_layout(self):
         # draw the return to game button
         self.screen.fill(SCREEN_FILL)
-        return_width = self.return_to_game_pressed.get_width()
-        return_height = self.return_to_game_pressed.get_height()
-        return_pos = ((self.screen.get_width() - return_width)/2, self.screen.get_height()-return_height-30)
-        return_text_pos = (return_pos[0] + return_width/2, return_pos[1] + return_height/2)
-
-        if self.return_pressed:
-            self.screen.blit(self.return_to_game_pressed, return_pos)
-        else:
-            self.screen.blit(self.return_to_game_unpressed, return_pos)
-
-        self.draw_text(message='Return', text_size=int(return_height*0.8), text_pos=return_text_pos, font='Arial')
+        if self.current_display == DISPLAYS[1]:
+            settings_menu_rect = pygame.Rect(SETTINGS_INSET, SETTINGS_INSET, self.screen.get_width()/2-SETTINGS_INSET*1.5, self.screen.get_height()-SETTINGS_INSET*2)
+            pygame.draw.rect(self.screen, SETTING_FILL, settings_menu_rect)
+            stat_menu_rect = pygame.Rect((SETTINGS_INSET+self.screen.get_width())/2, SETTINGS_INSET, self.screen.get_width()/2-SETTINGS_INSET*1.5, self.screen.get_height()-SETTINGS_INSET*2)
+            pygame.draw.rect(self.screen, SETTING_FILL, stat_menu_rect)
 
     def draw_stats(self):
-        x_pos = 40
-        y_pos= HEADER_HEIGHT + 20
+        if self.current_display == DISPLAYS[0]:
+            return
+        pos_x = self.screen.get_width()/2 + SETTINGS_INSET*3
+        pos_y = 60
+        new_line_spacing = 25
 
-        for i, (game_type, data) in enumerate(self.user.game_history.items()):
-        
-            ave_play_time = round(statistics.mean(data['play_times'])/60, 1) if len(data['play_times']) > 0 else 0.0
-            win_ratio = data['won'] / data['total_games'] if data['total_games'] > 0 else 0.0
-            
-            message = f'{game_type}: won = {data['won']}, total games = {data['total_games']} ratio = {win_ratio}, ave play time (min) = {ave_play_time}'
-            font_obj = pygame.font.Font('freesansbold.ttf', 20)
-            text_surface_obj = font_obj.render(message, True, (0, 0, 0))
-            x = x_pos
-            y = y_pos + i*30
-            self.screen.blit(text_surface_obj, (x, y))
+        for i, (game_type, data) in enumerate(self.user.game_history.items()):           
+            self.draw_text(game_type, text_pos=(pos_x, pos_y), text_size=15, center=False)
+            pos_y += new_line_spacing
+            for stat_name, val in data.items():
+                if type(val) == list:
+                    continue
+                self.draw_text(f'{stat_name}: {round(val, 3)}', text_pos=(pos_x, pos_y), text_size=15, center=False)
+                pos_y += new_line_spacing
 
 
     def _determine_screen_board_size(self):
@@ -336,16 +361,13 @@ class MineSweeper:
         On the settings screen/display:
             Return to Game
             Reset stats
-            Width of board (slider)
-            Height of board (slider)
-            # of mines (slider)
         """
 
         self.button_mapping['new_game'] = Button(
             name='new_game', 
             image_normal=self._scale_resource(pygame.image.load('resources/new_game.png')), 
             image_pressed=self._scale_resource(pygame.image.load('resources/tile_pressed.png')), 
-            image_secondary=self._scale_resource(pygame.image.load('resources/game_over.png')),
+            image_game_over=self._scale_resource(pygame.image.load('resources/game_over.png')),
             pos=[self.screen.get_width()/2, HEADER_HEIGHT/2],
             shape=BUTTON_SHAPES[1]
             )
@@ -363,16 +385,19 @@ class MineSweeper:
             image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
             image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
             display=DISPLAYS[1],
-            pos=[self.screen.get_width()/2, self.screen.get_height()-30],
-            text_to_display='Return to Menu'
+            pos=[self.screen.get_width()/4, self.screen.get_height()-SETTINGS_INSET*5],
+            text_to_display='Return to Menu',
+            text_size=30,
         )
 
-        self.button_mapping['rest_stats'] = Button(
+        self.button_mapping['reset_stats'] = Button(
             name='reset_stats',
             image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
             image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
             display=DISPLAYS[1],
-            text_to_display='Reset Stats'
+            pos=[self.screen.get_width()*0.75, self.screen.get_height()-SETTINGS_INSET*5],
+            text_to_display='Reset Stats',
+            text_size=30
         )
 
     def _load_resources(self):
@@ -408,7 +433,7 @@ class MineSweeper:
         return (int((mouse_pos[1] - HEADER_HEIGHT) // self.user.tile_size), int(mouse_pos[0] // self.user.tile_size))
 
     def draw_text(self, message: str, bounding_box: Optional[tuple[float]] = None, inset: float = 0.0,
-                  text_size: Optional[int] = None, text_pos: Optional[tuple] = None, font: str = 'Arial', 
+                  text_size: Optional[int] = None, text_pos: Optional[tuple] = None, font: str = 'Calibri', 
                   text_color: tuple = (0, 0, 0), center: bool = True):
         """
         Draws message to the screen. 
@@ -422,8 +447,9 @@ class MineSweeper:
         if inset > 0.25:
             raise ValueError(f'text inset of bounding box cannot exceed 25% of objects height or width')
         
-        if bounding_box is not None:               
-            text_size = int(bounding_box[3]*(1-inset))
+        if bounding_box is not None: 
+            if text_size is None:              
+                text_size = int(bounding_box[3]*(1-inset))
             while True:
                 font_obj = pygame.font.SysFont(font, text_size)
                 text_surface_obj = font_obj.render(str(message), True, text_color)
@@ -433,6 +459,9 @@ class MineSweeper:
                     text_size = int(text_size/ratio)
                     continue
                 break
+            
+            x = bounding_box[0] + (bounding_box[2] - text_surface_obj.get_width())/2
+            y = bounding_box[1] + (bounding_box[3] - text_surface_obj.get_height())/2
 
         else:
             font_obj = pygame.font.SysFont(font, text_size)
