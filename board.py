@@ -35,8 +35,8 @@ TILE_ACTIONS = [
     'flag',     # also serves to place a question mark if the tile is already flagged
 ]
 
-MAX_WIDTH = 40
-MAX_TILES = 1600
+MAX_WIDTH = 30
+MAX_HEIGHT = 25
 MAX_MINE_SHARE = 0.8    # the maximum percent of mines per total tiles allowed
 
 
