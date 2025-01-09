@@ -36,8 +36,11 @@ TILE_ACTIONS = [
 ]
 
 MAX_WIDTH = 30
+MIN_WIDTH = 10
 MAX_HEIGHT = 25
-MAX_MINE_SHARE = 0.8    # the maximum percent of mines per total tiles allowed
+MIN_HEIGHT = 10
+MIN_MINE_RATIO = 0.0
+MAX_MINE_RATIO = 0.8    # the maximum percent of mines per total tiles allowed
 
 
 class Board:
@@ -51,9 +54,10 @@ class Board:
         self.valid = True                       # turns to false if a mine is clicked
         self.user_won = False                   # turns true when all mines have been correctly found!
         # check that the number of mines does not exceed the total tiles
-        if self.mine_count / (self.width * self.height) > MAX_MINE_SHARE:
-            raise ValueError(f'mines cannot exceed {MAX_MINE_SHARE*100}% of total board tiles!\n'
+        if self.mine_count / (self.width * self.height) > MAX_MINE_RATIO or self.mine_count / (self.width * self.height) < MIN_MINE_RATIO:
+            raise ValueError(f'mines must be beteen {MIN_MINE_RATIO*100}% and {MAX_MINE_RATIO*100}% of total board tiles!\n'
                              f'Current mines: {self.mine_count}, total tiles: {self.width*self.height}')
+        
         self.tile_pressed = False
         self.current_pressed_tile: int = -1
 

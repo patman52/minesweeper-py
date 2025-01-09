@@ -43,7 +43,7 @@ class Button:
         self.font: None | str = font
         self.pressed: bool = False
         
-    def check_pressed(self, point: tuple[float]) -> bool:
+    def check_collide(self, point: tuple[float]) -> bool:
         if self.shape == BUTTON_SHAPES[0]:
             if self._determine_point_in_rectangle(point):
                 self.pressed = True
@@ -52,8 +52,6 @@ class Button:
             if self._determine_point_in_circle(point):
                 self.pressed = True
                 return True
-        
-        self.pressed = False
         return False
 
     def get_bounding_box(self) -> tuple[float]:

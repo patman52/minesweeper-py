@@ -17,7 +17,7 @@ import pygame
 from pygame.locals import *
 
 # custom scripts
-from board import Board, TILE_STATES, TILE_ACTIONS, MAX_WIDTH, MAX_HEIGHT, MAX_MINE_SHARE
+from board import *
 from button import Button, BUTTON_SHAPES
 from settings import *
 
@@ -65,6 +65,13 @@ class MineSweeper:
         # create screen
         self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height+HEADER_HEIGHT))
         self.screen.fill(SCREEN_FILL)
+        self.settings_submenu_width = None
+        self.settings_submenu_height = None
+        self.slider_width = None
+        self.slider_pos_x = None
+        self.width_slider_y = None
+        self.height_slider_y = None
+        self.mine_slider_y = None
 
         # create buttons and load image resources
         self._map_buttons()
@@ -122,14 +129,15 @@ class MineSweeper:
                 self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
             else:
                 # check if it's in the circle for the new game button
-                if self.button_mapping['new_game'].check_pressed((x, y)):
+                if self.button_mapping['new_game'].check_collide((x, y)):
                     self.start_time = time.time()
                     self.board.setup()
                     self.paused = False
                 # check if it's in the circle for the settings / stat screen
-                elif self.button_mapping['open_settings'].check_pressed((x, y)):
+                elif self.button_mapping['open_settings'].check_collide((x, y)):
                     print('changing to the settings / stats screen')
                     self.user.get_calc_stats()
+                    self._determine_settings_positions()
                     self.current_display = DISPLAYS[1]
                 
         # when we release the button we will click any tile we are hovering over
@@ -154,27 +162,49 @@ class MineSweeper:
 
         # check if we pressed either the return or reset stat button
         if pygame.mouse.get_pressed()[0]:
-            if self.button_mapping['return'].check_pressed((x, y)):
-                self.return_pressed = True
-            else:
-                self.return_pressed = False
-            if self.button_mapping['reset_stats'].check_pressed((x, y)):
-                self.reset_pressed = True
-            else:
-                self.reset_pressed = False
+            if self.button_mapping['return'].check_collide((x, y)):
+                self.button_mapping['return'].pressed = True
+                return
+            if self.button_mapping['reset_stats'].check_collide((x, y)):
+                self.button_mapping['reset_stats'].pressed = True
+                return
+
+            if self.button_mapping['width_slider'].check_collide((x, y)) and not self.button_mapping['width_slider'].pressed:
+                self.button_mapping['width_slider'].pressed = True
+                return
+
+            if self.button_mapping['height_slider'].check_collide((x, y)) and not self.button_mapping['height_slider'].pressed:
+                self.button_mapping['height_slider'].pressed = True
+                return
+            
+            if self.button_mapping['mine_slider'].check_collide((x, y)) and not self.button_mapping['mine_slider'].pressed:
+                self.button_mapping['mine_slider'].pressed = True
+                return
+
+            if self.button_mapping['width_slider'].pressed:
+                self._slider_position_to_board_stats(x, 'width_slider')
+
+            if self.button_mapping['height_slider'].pressed:
+                self._slider_position_to_board_stats(x, 'height_slider')
+
+            if self.button_mapping['mine_slider'].pressed:
+                self._slider_position_to_board_stats(x, 'mine_slider')
+
         elif event.type == MOUSEBUTTONUP:
-            if self.button_mapping['return'].check_pressed((x, y)) and self.return_pressed:
+            if self.button_mapping['return'].check_collide((x, y)) and self.button_mapping['return'].pressed:
                 print('returning to game screen')
-                self.return_pressed = False
+                self.button_mapping['return'].pressed = False
                 self.current_display = DISPLAYS[0]
-            if self.button_mapping['reset_stats'].check_pressed((x, y)) and self.reset_pressed:
+            if self.button_mapping['reset_stats'].check_collide((x, y)) and self.button_mapping['reset_stats'].pressed:
+                self.button_mapping['reset_stats'].pressed = False
                 print('reseting all game stats')
                 # self.user.reset_stats()
-
         else:
             self.button_mapping['return'].pressed = False
             self.button_mapping['reset_stats'].pressed = False
-
+            self.button_mapping['width_slider'].pressed = False
+            self.button_mapping['height_slider'].pressed = False
+            self.button_mapping['mine_slider'].pressed = False 
 
     def setup_window(self):
         pygame.init()
@@ -316,9 +346,27 @@ class MineSweeper:
         # draw the return to game button
         self.screen.fill(SCREEN_FILL)
         if self.current_display == DISPLAYS[1]:
-            settings_menu_rect = pygame.Rect(SETTINGS_INSET, SETTINGS_INSET, self.screen.get_width()/2-SETTINGS_INSET*1.5, self.screen.get_height()-SETTINGS_INSET*2)
+            # draw settings sub-menu
+            settings_menu_rect = pygame.Rect(SETTINGS_INSET, SETTINGS_INSET, self.settings_submenu_width, self.settings_submenu_height)
             pygame.draw.rect(self.screen, SETTING_FILL, settings_menu_rect)
-            stat_menu_rect = pygame.Rect((SETTINGS_INSET+self.screen.get_width())/2, SETTINGS_INSET, self.screen.get_width()/2-SETTINGS_INSET*1.5, self.screen.get_height()-SETTINGS_INSET*2)
+
+            # width slider bar
+            self.draw_text('WIDTH', bounding_box=(self.slider_pos_x, self.width_slider_y-55, self.slider_width, 40))
+            width_slider_rect = pygame.Rect(self.slider_pos_x, self.width_slider_y, self.slider_width, SLIDER_HEIGHT)
+            pygame.draw.rect(self.screen, (0, 0, 0), width_slider_rect)
+
+            # height slider bar
+            self.draw_text('HEIGHT', bounding_box=(self.slider_pos_x, self.height_slider_y-55, self.slider_width, 40))
+            height_slider_rect = pygame.Rect(self.slider_pos_x, self.height_slider_y, self.slider_width, SLIDER_HEIGHT)
+            pygame.draw.rect(self.screen, (0, 0, 0), height_slider_rect)
+
+            # mine slider bar
+            self.draw_text('MINES', bounding_box=(self.slider_pos_x, self.mine_slider_y-55, self.slider_width, 40))
+            mine_slider_rect = pygame.Rect(self.slider_pos_x, self.mine_slider_y, self.slider_width, SLIDER_HEIGHT)
+            pygame.draw.rect(self.screen, (0, 0, 0), mine_slider_rect)
+
+            # draw stats sub-menu
+            stat_menu_rect = pygame.Rect((SETTINGS_INSET+self.screen.get_width())/2, SETTINGS_INSET, self.settings_submenu_width, self.settings_submenu_height)
             pygame.draw.rect(self.screen, SETTING_FILL, stat_menu_rect)
 
     def draw_stats(self):
@@ -352,6 +400,48 @@ class MineSweeper:
 
         return width, height, mines
 
+    def _determine_settings_positions(self):
+        self.settings_submenu_width = self.screen.get_width()/2-SETTINGS_INSET*1.5
+        self.settings_submenu_height = self.screen.get_height()-SETTINGS_INSET*2
+        self.slider_width = self.settings_submenu_width*0.65
+        self.slider_pos_x = SETTINGS_INSET + (self.settings_submenu_width - self.slider_width)/2
+        self.width_slider_y = self.settings_submenu_height*0.2
+        self.height_slider_y = self.settings_submenu_height*0.4
+        self.mine_slider_y = self.settings_submenu_height*0.6
+        self._determine_slider_icon_positions()
+        
+    def _determine_slider_icon_positions(self):
+        self.button_mapping['width_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.width-MIN_WIDTH)/(MAX_WIDTH-MIN_WIDTH)-SLIDER_ICON_WIDTH/2, self.width_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
+        self.button_mapping['height_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.height-MIN_HEIGHT)/(MAX_HEIGHT-MIN_HEIGHT)-SLIDER_ICON_WIDTH/2, self.height_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
+        self.button_mapping['mine_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.mine_count-self.board.width*self.board.height*MIN_MINE_RATIO)/(self.board.width*self.board.height*MAX_MINE_RATIO-self.board.width*self.board.height*MIN_MINE_RATIO)-SLIDER_ICON_WIDTH/2, self.mine_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
+
+    def _slider_position_to_board_stats(self, x: float, slider: str):
+        
+        if x <= self.slider_pos_x:
+            ratio = 0.0
+        elif x >= self.slider_pos_x + self.slider_width:
+            ratio = 1.0
+        else:
+            ratio = (x - self.slider_pos_x) / self.slider_width
+        print(f'x = {x}, slider pos = {self.slider_pos_x}, width = {self.slider_width}, ratio = {ratio}')
+        print(f'width = {self.board.width}')
+
+        if slider == 'width_slider':
+            self.board.width = int((MAX_WIDTH-MIN_WIDTH)*ratio + MIN_WIDTH)
+            self.button_mapping['width_slider'].text_to_display = self.board.width
+        elif slider == 'height_slider':
+            self.board.height = int((MAX_HEIGHT-MIN_HEIGHT)*ratio + MIN_HEIGHT)
+            self.button_mapping['height_slider'].text_to_display = self.board.height
+        elif slider == 'mine_slider':
+            self.board.mine_count = int(self.board.width*self.board.height*(MAX_MINE_RATIO-MIN_MINE_RATIO)*ratio + self.board.width*self.board.height*MIN_MINE_RATIO) 
+            self.button_mapping['mine_slider'].text_to_display = self.board.mine_count
+        else:
+            raise ValueError(f'slider {slider} specified does not exist!')
+        
+        print(f'width now = {self.board.width}')
+
+        self._determine_slider_icon_positions()
+
     def _map_buttons(self):
         """
         We have four buttons and three sliders we need to track.
@@ -361,6 +451,7 @@ class MineSweeper:
         On the settings screen/display:
             Return to Game
             Reset stats
+            three 'sliders' for the width, height, and mine count
         """
 
         self.button_mapping['new_game'] = Button(
@@ -398,6 +489,30 @@ class MineSweeper:
             pos=[self.screen.get_width()*0.75, self.screen.get_height()-SETTINGS_INSET*5],
             text_to_display='Reset Stats',
             text_size=30
+        )
+
+        self.button_mapping['width_slider'] = Button(
+            name='width_slider',
+            image_normal=self._scale_resource(pygame.image.load('resources/slider.png'), target_width=SLIDER_ICON_WIDTH),
+            display=DISPLAYS[1],
+            text_to_display=self.board.width,
+            text_size=int(SLIDER_ICON_WIDTH*0.8)
+        )
+
+        self.button_mapping['height_slider'] = Button(
+            name='width_slider',
+            image_normal=self._scale_resource(pygame.image.load('resources/slider.png'), target_width=SLIDER_ICON_WIDTH),
+            display=DISPLAYS[1],
+            text_to_display=self.board.height,
+            text_size=int(SLIDER_ICON_WIDTH*0.8)
+        )
+
+        self.button_mapping['mine_slider'] = Button(
+            name='width_slider',
+            image_normal=self._scale_resource(pygame.image.load('resources/slider.png'), target_width=SLIDER_ICON_WIDTH),
+            display=DISPLAYS[1],
+            text_to_display=self.board.mine_count,
+            text_size=int(SLIDER_ICON_WIDTH*0.8)
         )
 
     def _load_resources(self):
@@ -440,6 +555,8 @@ class MineSweeper:
         param: bounding box: (x, y, w, h) -> draw text within a bounding box, will prioritize this over any specifed size or position
         param: inset: desire percent inset from the bounding box border, cannout exceed 25%
         """
+
+        message = str(message)
 
         if bounding_box is None and text_size is None and text_pos is None:
             raise ValueError(f'bounding box, or text size and pos must be specified')
