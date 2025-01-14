@@ -10,6 +10,7 @@ Author Paul Archer Tunis
 import datetime
 import time
 import sys
+from math import floor
 from typing import Tuple, Optional
 
 # external dependencies
@@ -32,8 +33,8 @@ class MineSweeper:
         self.fps: int = 24
         self.clock = pygame.time.Clock()
         self.user = User()
-
-        width, height, mines = self._determine_screen_board_size()
+        self.tile_start_pos = [0, 0]
+        width, height, mines = self._determine_screen_board_size(initial_set_up=True)
         
         # set up the board
         self.board = Board(width=width, height=height, mines=mines)    
@@ -65,15 +66,28 @@ class MineSweeper:
         # create screen
         self.screen = pygame.display.set_mode((self.user.tile_size*width, self.user.tile_size*height+HEADER_HEIGHT))
         self.screen.fill(SCREEN_FILL)
+
+        # settings menu positions
         self.settings_submenu_width = None
         self.settings_submenu_height = None
+        self.setting_btn_height = None
+        self.return_reset_btn_y = None
+        self.easy_btn_y = None
+        self.medium_btn_y = None
+        self.hard_btn_y = None
+
+        # custom game selection
         self.slider_width = None
         self.slider_pos_x = None
+        self.width_label_y = None
         self.width_slider_y = None
+        self.height_label_y = None
         self.height_slider_y = None
+        self.mine_label_y = None
         self.mine_slider_y = None
 
-        # create buttons and load image resources
+        # create buttons, initialize positions and load image resources
+        self._determine_settings_positions()
         self._map_buttons()
         self._load_resources()
 
@@ -138,6 +152,7 @@ class MineSweeper:
                     print('changing to the settings / stats screen')
                     self.user.get_calc_stats()
                     self._determine_settings_positions()
+                    self._determine_slider_icon_positions()
                     self.current_display = DISPLAYS[1]
                 
         # when we release the button we will click any tile we are hovering over
@@ -193,6 +208,10 @@ class MineSweeper:
         elif event.type == MOUSEBUTTONUP:
             if self.button_mapping['return'].check_collide((x, y)) and self.button_mapping['return'].pressed:
                 print('returning to game screen')
+                # reset the board, tile size and resources
+                self.board.setup()
+                self._determine_screen_board_size()
+                self._load_resources()
                 self.button_mapping['return'].pressed = False
                 self.current_display = DISPLAYS[0]
             if self.button_mapping['reset_stats'].check_collide((x, y)) and self.button_mapping['reset_stats'].pressed:
@@ -236,7 +255,8 @@ class MineSweeper:
             self.screen.blit(image, button.pos)
 
             if button.text_to_display is not None:
-                self.draw_text(button.text_to_display, text_size=button.text_size, bounding_box=button.get_bounding_box())
+                self.draw_text(button.text_to_display, text_size=button.text_size, 
+                               bounding_box=button.get_bounding_box(), text_color=button.text_color)
 
     def draw_counters(self):
         # don't draw counters for settings menu
@@ -247,10 +267,10 @@ class MineSweeper:
         mines_remaining = str(len(self.board.tiles_with_mines) - self.board.get_flagged_mine_count()).zfill(3)
         mine_count_pos_x = self.screen.get_width()/2-self.user.tile_size-COUNTER_WIDTH
         mines_rect = pygame.Rect(mine_count_pos_x, HEADER_HEIGHT*0.1, COUNTER_WIDTH, COUNTER_HEIGHT)
-        remaining_mines_bg = pygame.draw.rect(self.screen, (0, 0, 0), mines_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), mines_rect)
         time_count_pos_x = self.screen.get_width()/2+self.user.tile_size
         time_rect = pygame.Rect(time_count_pos_x, HEADER_HEIGHT*0.1, COUNTER_WIDTH, COUNTER_HEIGHT)
-        time_bg = pygame.draw.rect(self.screen, (0, 0, 0), time_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), time_rect)
         # pygame.display.flip()
 
         for digit_index, digit in enumerate(mines_remaining):
@@ -306,22 +326,22 @@ class MineSweeper:
                     resource = pygame.transform.flip(self.tile_unchecked, True, True)
                 else:
                     resource = self.tile_unchecked
-                self.screen.blit(resource, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                self.screen.blit(resource, (tile.col*self.user.tile_size+self.tile_start_pos[0], tile.row*self.user.tile_size+self.tile_start_pos[1]+HEADER_HEIGHT))
             elif tile.status == TILE_STATES[1]:
                 if tile.mine:
-                    self.screen.blit(self.tile_mine_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                    self.screen.blit(self.tile_mine_checked, (tile.col*self.user.tile_size+self.tile_start_pos[0], tile.row*self.user.tile_size+self.tile_start_pos[1]+HEADER_HEIGHT))
                 else:
-                    self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                    self.screen.blit(self.tile_checked, (tile.col*self.user.tile_size+self.tile_start_pos[0], tile.row*self.user.tile_size+self.tile_start_pos[1]+HEADER_HEIGHT))
                 if tile.adjacent_mines > 0:
-                    text_x = tile.col*self.user.tile_size + self.user.tile_size/2
-                    text_y = tile.row*self.user.tile_size + self.user.tile_size/2 + HEADER_HEIGHT
+                    text_x = tile.col*self.user.tile_size + self.user.tile_size/2 + self.tile_start_pos[0]
+                    text_y = tile.row*self.user.tile_size + self.user.tile_size/2 + HEADER_HEIGHT +self.tile_start_pos[1]
                     self.draw_text(str(tile.adjacent_mines), text_size=int(self.user.tile_size*0.8), text_pos=(text_x, text_y), 
                                    font='Times New Roman', text_color=NUM_TEXT_COLOUR[tile.adjacent_mines])
 
             elif tile.status == TILE_STATES[2]:
-                self.screen.blit(self.tile_flagged, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                self.screen.blit(self.tile_flagged, (tile.col*self.user.tile_size+self.tile_start_pos[0], tile.row*self.user.tile_size+self.tile_start_pos[1] + HEADER_HEIGHT))
             elif tile.status == TILE_STATES[3]:
-                self.screen.blit(self.tile_question, (tile.col*self.user.tile_size, tile.row*self.user.tile_size + HEADER_HEIGHT))
+                self.screen.blit(self.tile_question, (tile.col*self.user.tile_size+self.tile_start_pos[0], tile.row*self.user.tile_size+self.tile_start_pos[1] + HEADER_HEIGHT))
 
     def draw_mines(self):
         if self.current_display == DISPLAYS[1]:
@@ -330,15 +350,15 @@ class MineSweeper:
             return
         for tile in self.board.tiles:
             if tile.mine:
-                mine_x = tile.col*self.user.tile_size + (self.user.tile_size - self.mine.get_width())/2
-                mine_y = tile.row*self.user.tile_size + (self.user.tile_size - self.mine.get_height())/2 + HEADER_HEIGHT
+                mine_x = tile.col*self.user.tile_size + self.tile_start_pos[0] + (self.user.tile_size - self.mine.get_width())/2
+                mine_y = tile.row*self.user.tile_size + self.tile_start_pos[1] + (self.user.tile_size - self.mine.get_height())/2 + HEADER_HEIGHT
                 self.screen.blit(self.mine, (mine_x, mine_y))
                 continue
             
             # draw and X on any tiles that were flagged as mines and not actually mines
             if tile.status == TILE_STATES[2] and not tile.mine:
-                text_x = tile.col*self.user.tile_size + self.user.tile_size/2
-                text_y = tile.row*self.user.tile_size + self.user.tile_size/2 + HEADER_HEIGHT
+                text_x = tile.col*self.user.tile_size + self.tile_start_pos[0] + self.user.tile_size/2
+                text_y = tile.row*self.user.tile_size + self.tile_start_pos[1] + self.user.tile_size/2 + HEADER_HEIGHT
 
                 self.draw_text('X', text_size=int(self.user.tile_size*0.8), text_pos=(text_x, text_y), font='Arial')
 
@@ -350,18 +370,34 @@ class MineSweeper:
             settings_menu_rect = pygame.Rect(SETTINGS_INSET, SETTINGS_INSET, self.settings_submenu_width, self.settings_submenu_height)
             pygame.draw.rect(self.screen, SETTING_FILL, settings_menu_rect)
 
+            self.draw_text(message='Custom Game', text_pos=(SETTINGS_INSET+self.settings_submenu_width/2, self.custom_game_label_y), 
+                           center=(True, False), text_size=30)
+
+            # draw the slider bars, filled to the circlular icon
+
             # width slider bar
-            self.draw_text('WIDTH', bounding_box=(self.slider_pos_x, self.width_slider_y-55, self.slider_width, 40))
+            self.draw_text(message='Width', text_pos=(SETTINGS_INSET+self.settings_submenu_width/2, self.width_label_y),
+                           center=(True, False), text_size=30)
+            self.draw_text(message=MIN_WIDTH, text_pos=(self.slider_pos_x-30, self.width_slider_y+SLIDER_HEIGHT/2), text_size=20)
+            self.draw_text(message=MAX_WIDTH, text_pos=(self.slider_pos_x + self.slider_width+30, self.width_slider_y+SLIDER_HEIGHT/2), text_size=20)
             width_slider_rect = pygame.Rect(self.slider_pos_x, self.width_slider_y, self.slider_width, SLIDER_HEIGHT)
             pygame.draw.rect(self.screen, (0, 0, 0), width_slider_rect)
-
+             
             # height slider bar
-            self.draw_text('HEIGHT', bounding_box=(self.slider_pos_x, self.height_slider_y-55, self.slider_width, 40))
+            self.draw_text(message='Height', text_pos=(SETTINGS_INSET+self.settings_submenu_width/2, self.height_label_y),
+                           center=(True, False), text_size=30)
+            self.draw_text(message=MIN_HEIGHT, text_pos=(self.slider_pos_x-30, self.height_slider_y+SLIDER_HEIGHT/2), text_size=20)
+            self.draw_text(message=MAX_HEIGHT, text_pos=(self.slider_pos_x + self.slider_width+30, self.height_slider_y+SLIDER_HEIGHT/2), text_size=20)
             height_slider_rect = pygame.Rect(self.slider_pos_x, self.height_slider_y, self.slider_width, SLIDER_HEIGHT)
             pygame.draw.rect(self.screen, (0, 0, 0), height_slider_rect)
 
+            min_mines, max_mines = self.board.get_min_max_mines()
+
             # mine slider bar
-            self.draw_text('MINES', bounding_box=(self.slider_pos_x, self.mine_slider_y-55, self.slider_width, 40))
+            self.draw_text(message='Mines', text_pos=(SETTINGS_INSET+self.settings_submenu_width/2, self.mine_label_y),
+                           center=(True, False), text_size=30)
+            self.draw_text(message=min_mines, text_pos=(self.slider_pos_x-30, self.mine_slider_y+SLIDER_HEIGHT/2), text_size=20)
+            self.draw_text(message=max_mines, text_pos=(self.slider_pos_x + self.slider_width+30, self.mine_slider_y+SLIDER_HEIGHT/2), text_size=20)
             mine_slider_rect = pygame.Rect(self.slider_pos_x, self.mine_slider_y, self.slider_width, SLIDER_HEIGHT)
             pygame.draw.rect(self.screen, (0, 0, 0), mine_slider_rect)
 
@@ -385,35 +421,65 @@ class MineSweeper:
                 self.draw_text(f'{stat_name}: {round(val, 3)}', text_pos=(pos_x, pos_y), text_size=15, center=False)
                 pos_y += new_line_spacing
 
+    def _determine_screen_board_size(self, initial_set_up: bool = False):
+        if initial_set_up:
+            # get the size of the users screen
+            width = self.user.board_sizes[self.user.current_game]['width']
+            height = self.user.board_sizes[self.user.current_game]['height']
+            mines = self.user.board_sizes[self.user.current_game]['mines']
+            screen_width = SCREEN_SIZE[0] * MAX_SCREEN_RATIO
+            screen_height = SCREEN_SIZE[1] * MAX_SCREEN_RATIO
+        else:
+            width = self.board.width
+            height = self.board.height
+            mines = self.board.mine_count
+            screen_width = self.screen.get_width()
+            screen_height = self.screen.get_height()
+            
 
-    def _determine_screen_board_size(self):
-        # get the size of the users screen
-        width = self.user.board_sizes[self.user.current_game]['width']
-        height = self.user.board_sizes[self.user.current_game]['height']
-        mines = self.user.board_sizes[self.user.current_game]['mines']
+        if self.user.tile_size * width > screen_width:           
+            self.user.tile_size = floor(screen_width / width)
+        
+        if self.user.tile_size * height > screen_height:
+            self.user.tile_size = floor(screen_height / height)
 
-        if self.user.tile_size * width > SCREEN_SIZE[0] * MAX_SCREEN_RATIO:
-            self.user.tile_size = SCREEN_SIZE[0] * MAX_SCREEN_RATIO / width
-
-        if self.user.tile_size * height > SCREEN_SIZE[1] * MAX_SCREEN_RATIO:
-            self.user.tile_size = SCREEN_SIZE[1] * MAX_SCREEN_RATIO / height
+        if not initial_set_up:
+            self.tile_start_pos = [
+                (screen_width - self.user.tile_size*width)/2,
+                (screen_height - self.user.tile_size*height)/2
+            ]
 
         return width, height, mines
 
     def _determine_settings_positions(self):
         self.settings_submenu_width = self.screen.get_width()/2-SETTINGS_INSET*1.5
         self.settings_submenu_height = self.screen.get_height()-SETTINGS_INSET*2
+        
+        # y position for the return and reset buttons
+        self.return_reset_btn_y = SETTINGS_INSET*2
+
+        # determine what the button height will be for the rest of the buttons
+        self.setting_btn_height = self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH).get_height()
+        self.easy_btn_y = self.return_reset_btn_y + SETTINGS_INSET + self.setting_btn_height
+        self.medium_btn_y = self.easy_btn_y + SETTINGS_INSET + self.setting_btn_height
+        self.hard_btn_y = self.medium_btn_y + SETTINGS_INSET + self.setting_btn_height
+
+        # custom game positions
+        self.custom_game_label_y = self.hard_btn_y + SETTINGS_INSET*4 + self.setting_btn_height
         self.slider_width = self.settings_submenu_width*0.65
         self.slider_pos_x = SETTINGS_INSET + (self.settings_submenu_width - self.slider_width)/2
-        self.width_slider_y = self.settings_submenu_height*0.2
-        self.height_slider_y = self.settings_submenu_height*0.4
-        self.mine_slider_y = self.settings_submenu_height*0.6
-        self._determine_slider_icon_positions()
+        self.width_label_y = self.custom_game_label_y + SETTINGS_INSET*4
+        self.width_slider_y = self.width_label_y + SETTINGS_INSET + SLIDER_ICON_WIDTH*0.5
+        self.height_label_y = self.width_slider_y + SETTINGS_INSET + SLIDER_ICON_WIDTH
+        self.height_slider_y = self.height_label_y + SETTINGS_INSET + SLIDER_ICON_WIDTH*0.5
+        self.mine_label_y = self.height_slider_y + SETTINGS_INSET + SLIDER_ICON_WIDTH
+        self.mine_slider_y = self.mine_label_y + SETTINGS_INSET + SLIDER_ICON_WIDTH*0.5
         
     def _determine_slider_icon_positions(self):
         self.button_mapping['width_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.width-MIN_WIDTH)/(MAX_WIDTH-MIN_WIDTH)-SLIDER_ICON_WIDTH/2, self.width_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
         self.button_mapping['height_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.height-MIN_HEIGHT)/(MAX_HEIGHT-MIN_HEIGHT)-SLIDER_ICON_WIDTH/2, self.height_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
-        self.button_mapping['mine_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.mine_count-self.board.width*self.board.height*MIN_MINE_RATIO)/(self.board.width*self.board.height*MAX_MINE_RATIO-self.board.width*self.board.height*MIN_MINE_RATIO)-SLIDER_ICON_WIDTH/2, self.mine_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
+        min_mines, max_mines = self.board.get_min_max_mines()
+        self.button_mapping['mine_slider'].pos = [self.slider_pos_x+self.slider_width * (self.board.mine_count-min_mines)/(max_mines-min_mines)-SLIDER_ICON_WIDTH/2, self.mine_slider_y-(SLIDER_ICON_WIDTH-SLIDER_HEIGHT)/2]
 
     def _slider_position_to_board_stats(self, x: float, slider: str):
         
@@ -423,8 +489,6 @@ class MineSweeper:
             ratio = 1.0
         else:
             ratio = (x - self.slider_pos_x) / self.slider_width
-        print(f'x = {x}, slider pos = {self.slider_pos_x}, width = {self.slider_width}, ratio = {ratio}')
-        print(f'width = {self.board.width}')
 
         if slider == 'width_slider':
             self.board.width = int((MAX_WIDTH-MIN_WIDTH)*ratio + MIN_WIDTH)
@@ -437,8 +501,6 @@ class MineSweeper:
             self.button_mapping['mine_slider'].text_to_display = self.board.mine_count
         else:
             raise ValueError(f'slider {slider} specified does not exist!')
-        
-        print(f'width now = {self.board.width}')
 
         self._determine_slider_icon_positions()
 
@@ -473,22 +535,54 @@ class MineSweeper:
 
         self.button_mapping['return'] = Button(
             name='return',
-            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
-            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
+            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH),
+            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=SETTING_BTN_WIDTH),
             display=DISPLAYS[1],
-            pos=[self.screen.get_width()/4, self.screen.get_height()-SETTINGS_INSET*5],
+            pos=[self.screen.get_width()*0.25, self.return_reset_btn_y],
+            center=(True, False),
             text_to_display='Return to Menu',
             text_size=30,
         )
 
         self.button_mapping['reset_stats'] = Button(
             name='reset_stats',
-            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
-            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=CHANGE_SETTINGS_WIDTH),
+            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH),
+            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=SETTING_BTN_WIDTH),
             display=DISPLAYS[1],
-            pos=[self.screen.get_width()*0.75, self.screen.get_height()-SETTINGS_INSET*5],
+            pos=[self.screen.get_width()*0.75, self.return_reset_btn_y],
+            center=(True, False),
             text_to_display='Reset Stats',
             text_size=30
+        )
+
+        self.button_mapping['easy_game_type'] = Button(
+            name='easy',
+            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH),
+            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=SETTING_BTN_WIDTH),
+            display=DISPLAYS[1],
+            pos=[self.screen.get_width()*0.25, self.easy_btn_y],
+            center=(True, False),
+            text_to_display=f'Easy: {DEFAULTS['board_sizes']['easy']['width']} x {DEFAULTS['board_sizes']['easy']['height']} - {DEFAULTS['board_sizes']['easy']['mines']} mines'
+        )
+
+        self.button_mapping['medium_game_type'] = Button(
+            name='medium',
+            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH),
+            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=SETTING_BTN_WIDTH),
+            display=DISPLAYS[1],
+            pos=[self.screen.get_width()*0.25, self.medium_btn_y],
+            center=(True, False),
+            text_to_display=f'Medium: {DEFAULTS['board_sizes']['medium']['width']} x {DEFAULTS['board_sizes']['medium']['height']} - {DEFAULTS['board_sizes']['medium']['mines']} mines'
+        )
+
+        self.button_mapping['hard_game_type'] = Button(
+            name='hard',
+            image_normal=self._scale_resource(pygame.image.load('resources/settings btn unpressed.png'), target_width=SETTING_BTN_WIDTH),
+            image_pressed=self._scale_resource(pygame.image.load('resources/settings btn pressed.png'), target_width=SETTING_BTN_WIDTH),
+            display=DISPLAYS[1],
+            pos=[self.screen.get_width()*0.25, self.hard_btn_y],
+            center=(True, False),
+            text_to_display=f'Hard: {DEFAULTS['board_sizes']['hard']['width']} x {DEFAULTS['board_sizes']['hard']['height']} - {DEFAULTS['board_sizes']['hard']['mines']} mines'
         )
 
         self.button_mapping['width_slider'] = Button(
@@ -545,9 +639,9 @@ class MineSweeper:
         """
         finds the row and col of the tile click
         """
-        return (int((mouse_pos[1] - HEADER_HEIGHT) // self.user.tile_size), int(mouse_pos[0] // self.user.tile_size))
+        return (int((mouse_pos[1] - HEADER_HEIGHT - self.tile_start_pos[1]) // self.user.tile_size), int((mouse_pos[0] - self.tile_start_pos[0])  // self.user.tile_size))
 
-    def draw_text(self, message: str, bounding_box: Optional[tuple[float]] = None, inset: float = 0.0,
+    def draw_text(self, message: str, bounding_box: Optional[tuple[float]] = None, inset: float = 0.15,
                   text_size: Optional[int] = None, text_pos: Optional[tuple] = None, font: str = 'Calibri', 
                   text_color: tuple = (0, 0, 0), center: bool = True):
         """

@@ -78,7 +78,7 @@ DIGIT_GAP = 5
 TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
 TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
 SETTINGS_BTN_PADX = 20
-CHANGE_SETTINGS_WIDTH = 220
+SETTING_BTN_WIDTH = 220
 SLIDER_ICON_WIDTH = 25
 SLIDER_HEIGHT=10
 
@@ -207,9 +207,9 @@ class User:
             self.game_history[type]['won'] += int(game[cols.index('Won')])
 
     def save_game(self, type: str, date_played: str, play_time: float, win: bool):
-        self.game_history[type]['play_time'].append(play_time)
+        self.game_history[type]['play_times'].append(play_time)
         self.game_history[type]['total_games'] += 1
-        self.game_history[type]['win'] += int(win)
+        self.game_history[type]['won'] += int(win)
         self.get_calc_stats()
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()

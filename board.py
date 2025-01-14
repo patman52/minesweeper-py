@@ -39,8 +39,8 @@ MAX_WIDTH = 30
 MIN_WIDTH = 10
 MAX_HEIGHT = 25
 MIN_HEIGHT = 10
-MIN_MINE_RATIO = 0.0
-MAX_MINE_RATIO = 0.8    # the maximum percent of mines per total tiles allowed
+MIN_MINE_RATIO = 0.05
+MAX_MINE_RATIO = 0.3    # the maximum percent of mines per total tiles allowed
 
 
 class Board:
@@ -88,6 +88,15 @@ class Board:
         self.neighbors.clear()
         self._assign_mines()
         self._map_neighbors()
+
+    def get_min_max_mines(self) -> tuple[int, int]:
+        min_mines = int(round(self.width*self.height*MIN_MINE_RATIO))
+        max_mines = int(round(self.width*self.height*MAX_MINE_RATIO))
+        if self.mine_count < min_mines:
+            self.mine_count = min_mines
+        elif self.mine_count > max_mines:
+            self.mine_count = max_mines
+        return min_mines, max_mines
 
     def get_tile_id_by_row_and_col(self, row: int, col: int) -> int | None:
         """

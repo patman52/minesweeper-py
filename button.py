@@ -17,7 +17,8 @@ class Button:
     def __init__(self, name:str, image_normal: 'pygame.image', image_pressed: Optional['pygame.image'] = None, 
                  image_game_over: Optional['pygame.image'] = None, shape: str = BUTTON_SHAPES[0],
                  display: str = DISPLAYS[0], pos: list[float] = [0.0, 0.0], center: tuple[bool] = (True, True),
-                 text_to_display: Optional[str] = None, text_size: Optional[int] = None, font: Optional[str] = None):
+                 text_to_display: Optional[str] = None, text_size: Optional[int] = None, font: Optional[str] = None,
+                 text_color: tuple = (0, 0, 0)):
         self.name: str = name
         self.image_normal: 'pygame.image' = image_normal
         if image_pressed is None:
@@ -41,6 +42,7 @@ class Button:
         self.text_to_display: None | str = text_to_display
         self.text_size: None | int = text_size 
         self.font: None | str = font
+        self.text_color: tuple = text_color
         self.pressed: bool = False
         
     def check_collide(self, point: tuple[float]) -> bool:
