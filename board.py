@@ -7,6 +7,7 @@ Author Paul Archer Tunis
 
 """
 import random
+from math import ceil
 
 # used to find neighboring tile ids
 SHIFT = {
@@ -79,7 +80,7 @@ class Board:
         self.tiles.clear()
         self.tiles_with_mines.clear()
         self.neighbors.clear()
-    
+
     def reset_mines(self) -> None:
         for tile in self.tiles:
             tile.mine = False 
@@ -90,8 +91,8 @@ class Board:
         self._map_neighbors()
 
     def get_min_max_mines(self) -> tuple[int, int]:
-        min_mines = int(round(self.width*self.height*MIN_MINE_RATIO))
-        max_mines = int(round(self.width*self.height*MAX_MINE_RATIO))
+        min_mines = int(ceil(self.width*self.height*MIN_MINE_RATIO))
+        max_mines = int(ceil(self.width*self.height*MAX_MINE_RATIO))
         if self.mine_count < min_mines:
             self.mine_count = min_mines
         elif self.mine_count > max_mines:
@@ -140,6 +141,7 @@ class Board:
 
         # if the tile is flagged on question mark, already checked, we won the game, or the board is not valid, then actions do nothing
         if self.tiles[tile_id].status != TILE_STATES[0] and action != TILE_ACTIONS[3] or not self.valid or self.user_won:
+            self._release_tiles()
             return
 
         # pressing a tile
@@ -150,6 +152,7 @@ class Board:
         # clicking a tile
         if action == TILE_ACTIONS[2]:
             self._click_tile(tile_id)
+            self._release_tiles()
             return
 
         # flagging / question mark a tile

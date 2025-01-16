@@ -12,6 +12,7 @@ import json
 import os
 import sqlite3
 from statistics import mean
+from typing import Optional
 
 MOUSE_LEFT = 1
 MOUSE_RIGHT = 3
@@ -20,7 +21,7 @@ SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.Get
 SCREEN_FILL = (200, 200, 200)
 SETTING_FILL = (255, 255, 255)
 SETTINGS_INSET = 10
-MAX_SCREEN_RATIO = 0.7
+MAX_SCREEN_RATIO = 0.6
 DISPLAYS = ['game', 'settings']
 
 # the colors for numbers showing the number of adjacent mines
@@ -236,6 +237,26 @@ class User:
             game_data['ave_playtime'] = mean(game_data['play_times']) if len(game_data['play_times']) > 0 else 0.0
             game_data['ratio'] = game_data['won'] / game_data['total_games'] if game_data['total_games'] > 0 else 0.0
 
-    def update_settings(self):
-        pass
+    def get_current_game_specs(self, game_type: Optional[str] = None):
 
+        if game_type is None:
+            game_type = self.current_game
+        else:
+            if game_type not in GAME_TYPES:
+                raise ValueError(f'game_type {game_type} does not match available game types {GAME_TYPES}')
+        
+        width = self.board_sizes[game_type]['width']
+        height = self.board_sizes[game_type]['height']
+        mines = self.board_sizes[game_type]['mines']
+
+        return width, height, mines
+
+    def update_settings(self, width: int, height: int, mines: int) -> None:
+        self.board_sizes['custom']['width'] = width
+        self.board_sizes['custom']['height'] = height
+        self.board_sizes['custom']['mines'] = mines
+        con = sqlite3.connect(SAVE_DATA_FILE)
+        cur = con.cursor()
+        cur.execute('UPDATE SETTINGS SET Board_Sizes = ?, Last_Game_Played = ?', (json.dumps(self.board_sizes), 'custom'))
+        con.commit()
+        con.close()
