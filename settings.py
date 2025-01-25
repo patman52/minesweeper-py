@@ -21,7 +21,7 @@ SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.Get
 SCREEN_FILL = (200, 200, 200)
 SETTING_FILL = (255, 255, 255)
 SETTINGS_INSET = 10
-MAX_SCREEN_RATIO = 0.6
+MAX_SCREEN_RATIO = 0.8
 DISPLAYS = ['game', 'settings']
 
 # the colors for numbers showing the number of adjacent mines
@@ -127,10 +127,7 @@ DEFAULTS = {
 
 class User:
     def __init__(self):
-        self.user_stats: dict = {}
         self.tile_size: int = 0
-        self.screen_fill: tuple = {}
-        self.max_screen_ratio: float = 0.0
         self.board_sizes: dict = {}
         self.current_game: str = ''
         self.game_history: dict = {

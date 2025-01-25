@@ -27,7 +27,7 @@ pygame.font.init()
 class MineSweeper:
     def __init__(self):
         # set up screen and object sizes
-        self.caption: str = "Minesweeper"
+        self.caption: str = "Minesweeper-Py"
         self.fps: int = 24
         self.clock = pygame.time.Clock()
         self.user = User()
@@ -62,9 +62,12 @@ class MineSweeper:
         self.segment_display: None | pygame.Surface = None
 
         # create screen
+        icon = pygame.image.load('resources/mine.png')
+        pygame.display.set_icon(icon)
         self.screen: pygame.Surface = pygame.display.set_mode((SCREEN_SIZE[0]*MAX_SCREEN_RATIO, 
                                                                SCREEN_SIZE[1]*MAX_SCREEN_RATIO+HEADER_HEIGHT))
         self.screen.fill(SCREEN_FILL)
+        
 
         # settings menu positions
         self.settings_submenu_width: None | float = None
@@ -255,6 +258,7 @@ class MineSweeper:
 
         if return_to_game:
             # reset the board, tile size and resources
+            self.start_time = time.time()
             self.board.setup()
             self._determine_screen_board_size()
             self._load_resources()
