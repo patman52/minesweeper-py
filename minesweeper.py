@@ -10,7 +10,6 @@ Author Paul Archer Tunis
 import datetime
 import time
 import sys
-from math import floor
 from typing import Tuple, Optional
 
 # external dependencies
@@ -75,6 +74,7 @@ class MineSweeper:
         self.easy_btn_y: None | float = None
         self.medium_btn_y: None | float = None
         self.hard_btn_y: None | float = None
+        self.updated_custom_game: bool = False
 
         # custom game selection
         self.slider_width: None | float = None
@@ -140,7 +140,7 @@ class MineSweeper:
         if pygame.mouse.get_pressed()[0]:
             if y > HEADER_HEIGHT:
                 row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
-                self.board.tile_action(action=TILE_ACTIONS[0], row=row, col=col)
+                self.board.tile_action(action=TILE_ACTIONS[0], flag_only=self.button_mapping['flag_only'].pressed, row=row, col=col)
             else:
                 # check if it's in the circle for the new game button
                 if self.button_mapping['new_game'].check_collide((x, y)):
@@ -154,18 +154,20 @@ class MineSweeper:
                     self._determine_settings_positions()
                     self._determine_slider_icon_positions()
                     self.current_display = DISPLAYS[1]
+                elif self.button_mapping['flag_only'].check_collide((x, y), flip=True):
+                    pass
                 
         # when we release the button we will click any tile we are hovering over
         elif event.type == MOUSEBUTTONUP and self.board.tile_pressed:
             if y > HEADER_HEIGHT:
                 row, col = self._find_clicked_tile((x, y)) # what tile is the mouse in?
-                self.board.tile_action(action=TILE_ACTIONS[2], row=row, col=col)
+                self.board.tile_action(action=TILE_ACTIONS[2], flag_only=self.button_mapping['flag_only'].pressed, row=row, col=col)
                 # if the game hasn't started yet (typically since we've just loaded the program), start it now
                 if self.paused:
                     self.start_time = time.time()
                     self.paused = False
             else:
-                self.board.tile_action(TILE_ACTIONS[1])
+                self.board.tile_action(TILE_ACTIONS[1], flag_only=self.button_mapping['flag_only'].pressed)
                 self.user._load_game_data()
 
         self.button_mapping['new_game'].pressed = self.board.tile_pressed
@@ -209,19 +211,26 @@ class MineSweeper:
 
             if self.button_mapping['width_slider'].pressed:
                 self._slider_position_to_board_stats(x, 'width_slider')
+                self.updated_custom_game = True
 
             if self.button_mapping['height_slider'].pressed:
                 self._slider_position_to_board_stats(x, 'height_slider')
+                self.updated_custom_game = True
 
             if self.button_mapping['mine_slider'].pressed:
                 self._slider_position_to_board_stats(x, 'mine_slider')
+                self.updated_custom_game = True
 
         elif event.type == MOUSEBUTTONUP:
             if self.button_mapping['return'].check_collide((x, y)) and self.button_mapping['return'].pressed:
+                if self.updated_custom_game:
+                    self.user.current_game = 'custom'
                 return_to_game = True
             elif self.button_mapping['reset_stats'].check_collide((x, y)) and self.button_mapping['reset_stats'].pressed:
                 self.button_mapping['reset_stats'].pressed = False
                 print('reseting all game stats')
+                self.user.reset_stats()
+                self.user.get_calc_stats()
             elif self.button_mapping['easy_game_type'].check_collide((x, y)) and self.button_mapping['easy_game_type'].pressed:
                 self.board.width, self.board.height, self.board.mine_count = self.user.get_current_game_specs('easy')
                 self.user.current_game = 'easy'
@@ -427,18 +436,30 @@ class MineSweeper:
     def draw_stats(self) -> None:
         if self.current_display == DISPLAYS[0]:
             return
-        pos_x = self.screen.get_width()/2 + SETTINGS_INSET*3
-        pos_y = 60
-        new_line_spacing = 25
+        pos_x = self.button_mapping['reset_stats'].pos[0] + self.button_mapping['reset_stats'].size[0]/2
+        pos_y = self.button_mapping['reset_stats'].pos[1] + self.button_mapping['reset_stats'].size[1] + SETTINGS_INSET
+        new_line_spacing = 22
 
-        for i, (game_type, data) in enumerate(self.user.game_history.items()):           
-            self.draw_text(game_type, text_pos=(pos_x, pos_y), text_size=15, center=False)
+        for game_type, data in self.user.game_history.items():
+            if game_type == 'custom':
+                continue           
             pos_y += new_line_spacing
-            for stat_name, val in data.items():
-                if type(val) == list:
-                    continue
-                self.draw_text(f'{stat_name}: {round(val, 3)}', text_pos=(pos_x, pos_y), text_size=15, center=False)
-                pos_y += new_line_spacing
+            self.draw_text(game_type.title(), text_pos=(pos_x, pos_y), text_size=30, font='courier bold')
+            pos_y += new_line_spacing
+            # total games
+            self.draw_text(f'Total Games: {data['total_games']:,}', text_pos=(pos_x, pos_y), text_size=20)
+            pos_y += new_line_spacing
+            # won
+            self.draw_text(f'Won: {data['won']:,}', text_pos=(pos_x, pos_y), text_size=20)
+            pos_y += new_line_spacing
+            # ratio
+            self.draw_text(f'Win/Lose Ratio: {data['ratio']:.1%}', text_pos=(pos_x, pos_y), text_size=20)
+            pos_y += new_line_spacing
+            # average play time
+            min, sec = divmod(data['ave_playtime'], 60)
+            self.draw_text(f'Average Playtime: {round(min):02}:{round(sec):02}', text_pos=(pos_x, pos_y), text_size=20)
+            pos_y += new_line_spacing
+         
 
     def _determine_screen_board_size(self, initial_set_up: bool = False) -> tuple[int, int, int]:
         screen_width = SCREEN_SIZE[0] * MAX_SCREEN_RATIO
@@ -618,6 +639,15 @@ class MineSweeper:
             display=DISPLAYS[1],
             text_to_display=self.board.mine_count,
             text_size=int(SLIDER_ICON_WIDTH*0.7)
+        )
+
+        self.button_mapping['flag_only'] = Button(
+            name='flag_only',
+            image_normal=self._scale_resource(pygame.image.load('resources/flag_only_unpressed.png'), target_width=HEADER_HEIGHT*0.8),
+            image_pressed=self._scale_resource(pygame.image.load('resources/flag_only_pressed.png'), target_width=HEADER_HEIGHT*0.8),
+            display=DISPLAYS[0],
+            pos=[self.screen.get_width() - SETTINGS_BTN_PADX - HEADER_HEIGHT*0.8/2, HEADER_HEIGHT / 2],
+            shape=BUTTON_SHAPES[1]
         )
 
     def _load_resources(self) -> None:

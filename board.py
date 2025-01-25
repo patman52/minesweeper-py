@@ -111,7 +111,7 @@ class Board:
         
         return None
     
-    def tile_action(self, action: str, **kwargs) -> None:
+    def tile_action(self, action: str, flag_only: bool = False, **kwargs) -> None:
         """
         Control pressing, clicking, and flagging tiles and their associated status changes
         param: action - one of the elements in the TILE_ACTIONS list denoting what we are trying to do to the tile
@@ -123,6 +123,9 @@ class Board:
 
         if action not in TILE_ACTIONS:
             raise ValueError(f'{action} is not a valid action to perform against a tile')
+
+        if flag_only:
+            action = TILE_ACTIONS[3]
 
         # get the tile_id we are performing the tile against        
         if 'tile_id' in kwargs and action != TILE_ACTIONS[1]:
@@ -209,30 +212,6 @@ class Board:
             print('unflagging tile')
             self.tiles[tile_id].status = TILE_STATES[0]
             return
-
-    def print_board(self) -> None:
-        """
-        Used for text based console version only, prints a mock up board on the console
-        """
-        game_str = ''
-        col_count = 0
-        for tile in self.tiles:
-            if col_count >= self.width:
-                col_count = 0
-                game_str += '\n'
-            if tile.mine and tile.status == TILE_STATES[1]:
-                game_str += '[X]'
-            else:
-                if tile.adjacent_mines > 0 and tile.status == TILE_STATES[1]: 
-                    game_str += f'[{tile.adjacent_mines}]'
-                else:
-                    if tile.status == TILE_STATES[1]:
-                        game_str += '[ ]'
-                    else:
-                        game_str += '[-]'
-            col_count += 1
-
-        print(game_str)
     
     def get_flagged_mine_count(self) -> int:
         return len([mine_tile for mine_tile in self.tiles_with_mines if self.tiles[mine_tile].status == TILE_STATES[2]])
@@ -241,9 +220,7 @@ class Board:
         """
         Creates all tile objects on the board
         """
-        mine_count_temp = 0  # used to check to make sure we made the correct number of mines
         total_tiles = self.width * self.height
-        mine_percent = self.mine_count / total_tiles
         row_count = 0
         col_count = 0
         for tile_id in range(total_tiles):

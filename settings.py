@@ -102,24 +102,24 @@ DEFAULTS = {
     'last_game_played': 'easy',
     'board_sizes': {
         'easy': {
-            'width': 15,
+            'width': 10,
             'height': 10,
             'mines': 10
         },
         'medium': {
-            'width': 25,
+            'width': 15,
             'height': 15,
-            'mines': 50  
+            'mines': 40  
         },
         'hard': {
-            'width': 40,
+            'width': 20,
             'height': 25,
-            'mines': 100             
+            'mines': 120             
         },
         'custom': {
-            'width': 40,
+            'width': 10,
             'height': 25,
-            'mines': 100 
+            'mines': 40 
         }
     },
 }
@@ -134,7 +134,13 @@ class User:
         self.board_sizes: dict = {}
         self.current_game: str = ''
         self.game_history: dict = {
-            game_type: {'play_times': [], 'total_games': 0, 'won': 0, 'ave_playtime': 0.0, 'ratio': 0.0} for game_type in GAME_TYPES
+            game_type: {
+                'play_times': [], 
+                'total_games': 0, 
+                'won': 0, 
+                'ave_playtime': 0.0, 
+                'ratio': 0.0} 
+                for game_type in GAME_TYPES
         }
 
         # initialize user data
@@ -257,6 +263,6 @@ class User:
         self.board_sizes['custom']['mines'] = mines
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
-        cur.execute('UPDATE SETTINGS SET Board_Sizes = ?, Last_Game_Played = ?', (json.dumps(self.board_sizes), 'custom'))
+        cur.execute('UPDATE SETTINGS SET Board_Sizes = ?, Last_Game_Played = ?', (json.dumps(self.board_sizes), self.current_game))
         con.commit()
         con.close()
