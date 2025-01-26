@@ -3,7 +3,7 @@ board.py
 
 Contains the code for the Board class which tracks tile status, mines, adjacent mines, etc.
 
-Author Paul Archer Tunis
+Author Paul A Tunis
 
 """
 import random
@@ -36,12 +36,13 @@ TILE_ACTIONS = [
     'flag',     # also serves to place a question mark if the tile is already flagged
 ]
 
+# min and max board values
 MAX_WIDTH = 30
 MIN_WIDTH = 10
 MAX_HEIGHT = 25
 MIN_HEIGHT = 10
-MIN_MINE_RATIO = 0.05
-MAX_MINE_RATIO = 0.3    # the maximum percent of mines per total tiles allowed
+MIN_MINE_RATIO = 0.05   # minimum percent of mines per total tiles
+MAX_MINE_RATIO = 0.3    # the maximum percent of mines per total tiles
 
 
 class Board:
@@ -82,6 +83,9 @@ class Board:
         self.neighbors.clear()
 
     def reset_mines(self) -> None:
+        """
+        Reset mines back to normal, unchecked stat, reassign mines and map neighbors
+        """
         for tile in self.tiles:
             tile.mine = False 
             tile.status = TILE_STATES[0]
@@ -91,6 +95,9 @@ class Board:
         self._map_neighbors()
 
     def get_min_max_mines(self) -> tuple[int, int]:
+        """
+        Gets the minimum and maximum mines allows based on the current board width and height
+        """
         min_mines = int(ceil(self.width*self.height*MIN_MINE_RATIO))
         max_mines = int(ceil(self.width*self.height*MAX_MINE_RATIO))
         if self.mine_count < min_mines:
@@ -132,9 +139,7 @@ class Board:
             tile_id = int(kwargs['tile_id'])
         elif 'row' in kwargs and 'col' in kwargs and action != TILE_ACTIONS[1]:
             tile_id = self.get_tile_id_by_row_and_col(kwargs['row'], kwargs['col'])
-
             if tile_id is None:
-                print('No matching row or coloumn on game board!')
                 return           
         elif action == TILE_ACTIONS[1]:
             self._release_tiles()
@@ -175,13 +180,17 @@ class Board:
             tile.pressed = False
 
     def _click_tile(self, tile_id: int) -> None:
+        """
+        Clicks the specified tile and changes it to 'checked', then checks if the game is still valid, which means the tile in 
+        question was not a mine
+        """
         self._release_tiles()
         
         self.tiles[tile_id].status = TILE_STATES[1]
         
         # if its a mine, then game over
         if self.tiles[tile_id].mine:
-            print('YOU CLICKED A MINE!')
+            pass
         
         # if the tile has zero adjacent mines, we need to clear out all neighboring zero adjancent mine tiles
         elif self.tiles[tile_id].adjacent_mines == 0:
@@ -197,19 +206,16 @@ class Board:
 
         # flip to flagged
         if self.tiles[tile_id].status == TILE_STATES[0]:
-            print('flipping to flagged')
             self.tiles[tile_id].status = TILE_STATES[2]
             return
         
         # flip to question mark
         if self.tiles[tile_id].status == TILE_STATES[2]:
-            print('flipping to question mark')
             self.tiles[tile_id].status = TILE_STATES[3]
             return
         
         # flip back to unchecked
         if self.tiles[tile_id].status == TILE_STATES[3]:
-            print('unflagging tile')
             self.tiles[tile_id].status = TILE_STATES[0]
             return
     
@@ -236,13 +242,17 @@ class Board:
             col_count += 1
 
     def _assign_mines(self) -> None:
+        """
+        Randomly assigns mines to tiles on the board
+        """
         self.tiles_with_mines = random.sample(range(0, len(self.tiles)-1), self.mine_count)
         for tile in self.tiles:
             if tile.id in self.tiles_with_mines:
                 tile.mine = True
 
     def _map_neighbors(self) -> None:
-        """ `
+        """ 
+        Determines how many neighboring/adjancent tiles are mines to a specific tile
         tiles can have up to 8 neighbors
             c-1  c  c+1
         r-1 [0] [1] [2]
@@ -325,12 +335,12 @@ class Board:
         """
         The user needs to un-check all tiles that are not mines
         """
-        # check every other tile
+        # check every tile, if any non-mine tiles are still unchecked, the game is not over!
         for tile in self.tiles:
             if not tile.mine and tile.status != TILE_STATES[1]:
                 return
             
-        print('you won!')
+        # otherwise, all non-mine tiles are checked
         self.user_won = True
     
 

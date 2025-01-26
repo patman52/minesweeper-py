@@ -3,7 +3,7 @@ minesweeper.py
 
 A version of the classic minesweeper built in pure Python using Pygame!
 
-Author Paul Archer Tunis
+Author Paul A Tunis
 """
 
 # standard libraries
@@ -30,12 +30,12 @@ class MineSweeper:
         self.caption: str = "Minesweeper-Py"
         self.fps: int = 24
         self.clock = pygame.time.Clock()
-        self.user = User()
-        self.tile_start_pos = [0, 0]
+        self.user: User = User()
+        self.tile_start_pos: list = [0, 0]
         width, height, mines = self._determine_screen_board_size(initial_set_up=True)
         
         # set up the board
-        self.board = Board(width=width, height=height, mines=mines)    
+        self.board: Board = Board(width=width, height=height, mines=mines)    
         self.board.setup()
 
         # current display (either the game or the settings windows)
@@ -152,7 +152,6 @@ class MineSweeper:
                     self.paused = False
                 # check if it's in the circle for the settings / stat screen
                 elif self.button_mapping['open_settings'].check_collide((x, y)):
-                    print('changing to the settings / stats screen')
                     self.user.get_calc_stats()
                     self._determine_settings_positions()
                     self._determine_slider_icon_positions()
@@ -231,7 +230,6 @@ class MineSweeper:
                 return_to_game = True
             elif self.button_mapping['reset_stats'].check_collide((x, y)) and self.button_mapping['reset_stats'].pressed:
                 self.button_mapping['reset_stats'].pressed = False
-                print('reseting all game stats')
                 self.user.reset_stats()
                 self.user.get_calc_stats()
             elif self.button_mapping['easy_game_type'].check_collide((x, y)) and self.button_mapping['easy_game_type'].pressed:
@@ -276,7 +274,7 @@ class MineSweeper:
         self.draw_counters()
         self.draw_tiles()   
         self.draw_mines()    
-        if self.board.user_won:
+        if self.board.user_won and self.current_display == DISPLAYS[0]:
             self.draw_text('YOU WON!!!', text_pos=(self.screen.get_width()/2, self.screen.get_height()/2), text_size=60)
         pygame.display.update()
         self.clock.tick(self.fps)

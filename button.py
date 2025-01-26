@@ -3,7 +3,7 @@ button.py
 
 Button objects and data for minesweeper, helps determine if a button was pressed based on size, shape, and position
 
-Author Paul Archer Tunis
+Author Paul A Tunis
 """
 
 from math import sqrt
@@ -46,6 +46,10 @@ class Button:
         self.pressed: bool = False
         
     def check_collide(self, point: tuple[float], flip: bool = False) -> bool:
+        """
+        Checks if the given point (x, y) falls inside the button and if true, 'presses' the button.
+        Returns true or false
+        """
         if self.shape == BUTTON_SHAPES[0]:
             if self._determine_point_in_rectangle(point):
                 if flip:
@@ -74,4 +78,3 @@ class Button:
         (x - center_x)² + (y - center_y)² < radius².
         """
         return sqrt((point[0] - (self.pos[0] + self.size[0]/2))**2 + (point[1] - (self.pos[1] + self.size[0]/2))**2) < self.size[0]/2
-

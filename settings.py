@@ -3,7 +3,7 @@ settings.py
 
 Contains settings, defaults and constants for minesweeper.py, controls user data and saving game data to external sqlite database
 
-Author Paul Archer Tunis
+Author Paul A Tunis
 
 """
 
@@ -17,11 +17,12 @@ from typing import Optional
 MOUSE_LEFT = 1
 MOUSE_RIGHT = 3
 
+# screen related settings
 SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
 SCREEN_FILL = (200, 200, 200)
 SETTING_FILL = (255, 255, 255)
 SETTINGS_INSET = 10
-MAX_SCREEN_RATIO = 0.8
+MAX_SCREEN_RATIO = 0.7
 DISPLAYS = ['game', 'settings']
 
 # the colors for numbers showing the number of adjacent mines
@@ -43,6 +44,19 @@ SAVE_DATA_FILE = 'game data.db'
 HEADER_HEIGHT = 70
 TILE_MIN = 20
 TILE_MAX = 80
+
+# settings menu object general placement and size settings
+COUNTER_WIDTH = 100
+COUNTER_HEIGHT = HEADER_HEIGHT*0.8
+SEGMENT_WIDTH = COUNTER_WIDTH*0.2
+SEGMENT_GAP = SEGMENT_WIDTH*0.15
+DIGIT_GAP = 5
+TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
+TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
+SETTINGS_BTN_PADX = 20
+SETTING_BTN_WIDTH = 220
+SLIDER_ICON_WIDTH = 25
+SLIDER_HEIGHT=10
 
 # used to turn on and off segments in the seven segment counters, key is the digit, and value is a seven character string with 0s and 1s
 # 0 = off, 1 = on
@@ -70,18 +84,6 @@ SEGMENTS_TO_DISPLAY = {
     8: [True, True, True, True, True, True, True],
     9: [True, True, True, True, False, True, True]
 }
-
-COUNTER_WIDTH = 100
-COUNTER_HEIGHT = HEADER_HEIGHT*0.8
-SEGMENT_WIDTH = COUNTER_WIDTH*0.2
-SEGMENT_GAP = SEGMENT_WIDTH*0.15
-DIGIT_GAP = 5
-TOTAL_DIGIT_HEIGHT = SEGMENT_GAP*3 + SEGMENT_WIDTH*2
-TOTAL_DIGIT_WIDTH = SEGMENT_GAP*2 + SEGMENT_WIDTH
-SETTINGS_BTN_PADX = 20
-SETTING_BTN_WIDTH = 220
-SLIDER_ICON_WIDTH = 25
-SLIDER_HEIGHT=10
 
 SEGMENT_POSITION_SIZE = {
     # segement_index: [x, y, rotate (true or false)]
@@ -124,7 +126,7 @@ DEFAULTS = {
     },
 }
 
-
+# stores general user data, game history data, and all database operations
 class User:
     def __init__(self):
         self.tile_size: int = 0
@@ -143,14 +145,20 @@ class User:
         # initialize user data
         self._load_save_data()
 
-    def _load_save_data(self):          
+    def _load_save_data(self) -> None:   
+        """
+        Connects to the database, creates a new one if it doesn't exist, and pulls the user data
+        """       
         if not os.path.isfile(SAVE_DATA_FILE):
             self._create_database()
 
         self._load_user_settings()
         self._load_game_data()
 
-    def _create_database(self):
+    def _create_database(self) -> None:
+        """
+        Create a new SQLite database to store user and game data
+        """
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
 
@@ -181,7 +189,10 @@ class User:
         con.commit()
         con.close()
 
-    def _load_user_settings(self):
+    def _load_user_settings(self) -> None:
+        """
+        Load user data from an existing SQLite database
+        """
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
         sql = 'SELECT * FROM SETTINGS'
@@ -193,7 +204,10 @@ class User:
         self.current_game = str(data[cols.index('Last_Game_Played')])
         con.close()
 
-    def _load_game_data(self):
+    def _load_game_data(self) -> None:
+        """
+        Load game data from an existing SQLite database
+        """
         con = sqlite3.connect(SAVE_DATA_FILE)
         cur = con.cursor()
 
@@ -210,7 +224,10 @@ class User:
             self.game_history[type]['total_games'] += 1
             self.game_history[type]['won'] += int(game[cols.index('Won')])
 
-    def save_game(self, type: str, date_played: str, play_time: float, win: bool):
+    def save_game(self, type: str, date_played: str, play_time: float, win: bool) -> None:
+        """
+        Save the results of a game to the local SQLite database
+        """
         self.game_history[type]['play_times'].append(play_time)
         self.game_history[type]['total_games'] += 1
         self.game_history[type]['won'] += int(win)
@@ -222,7 +239,7 @@ class User:
         con.commit()
         con.close
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """
         Deletes all saved game data
         """
@@ -236,12 +253,17 @@ class User:
         con.close()
 
     def get_calc_stats(self):
+        """
+        Summarizes the average playtime and win/lose ratio based on existing data
+        """
         for type, game_data in self.game_history.items():
             game_data['ave_playtime'] = mean(game_data['play_times']) if len(game_data['play_times']) > 0 else 0.0
             game_data['ratio'] = game_data['won'] / game_data['total_games'] if game_data['total_games'] > 0 else 0.0
 
     def get_current_game_specs(self, game_type: Optional[str] = None):
-
+        """
+        Pulls the current specs for each game type and returns the width, height and number of mines
+        """
         if game_type is None:
             game_type = self.current_game
         else:
