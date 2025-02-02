@@ -7,7 +7,6 @@ Author Paul A Tunis
 
 """
 
-import ctypes
 import json
 import os
 import sqlite3
@@ -18,7 +17,6 @@ MOUSE_LEFT = 1
 MOUSE_RIGHT = 3
 
 # screen related settings
-SCREEN_SIZE = ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1)
 SCREEN_FILL = (200, 200, 200)
 SETTING_FILL = (255, 255, 255)
 SETTINGS_INSET = 10

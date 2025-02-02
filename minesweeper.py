@@ -32,6 +32,14 @@ class MineSweeper:
         self.clock = pygame.time.Clock()
         self.user: User = User()
         self.tile_start_pos: list = [0, 0]
+        
+        # create screen
+        icon = pygame.image.load('resources/mine.png')
+        pygame.display.set_icon(icon)
+        self.screen_size = (pygame.display.Info().current_w, pygame.display.Info().current_h) 
+        self.screen: pygame.Surface = pygame.display.set_mode((self.screen_size[0]*MAX_SCREEN_RATIO, 
+                                                               self.screen_size[1]*MAX_SCREEN_RATIO+HEADER_HEIGHT))
+        self.screen.fill(SCREEN_FILL)
         width, height, mines = self._determine_screen_board_size(initial_set_up=True)
         
         # set up the board
@@ -59,15 +67,7 @@ class MineSweeper:
         self.tile_question: None | pygame.Surface = None
         self.tile_mine_checked: None | pygame.Surface = None
         self.mine: None | pygame.Surface = None
-        self.segment_display: None | pygame.Surface = None
-
-        # create screen
-        icon = pygame.image.load('resources/mine.png')
-        pygame.display.set_icon(icon)
-        self.screen: pygame.Surface = pygame.display.set_mode((SCREEN_SIZE[0]*MAX_SCREEN_RATIO, 
-                                                               SCREEN_SIZE[1]*MAX_SCREEN_RATIO+HEADER_HEIGHT))
-        self.screen.fill(SCREEN_FILL)
-        
+        self.segment_display: None | pygame.Surface = None        
 
         # settings menu positions
         self.settings_submenu_width: None | float = None
@@ -464,8 +464,8 @@ class MineSweeper:
          
 
     def _determine_screen_board_size(self, initial_set_up: bool = False) -> tuple[int, int, int]:
-        screen_width = SCREEN_SIZE[0] * MAX_SCREEN_RATIO
-        screen_height = SCREEN_SIZE[1] * MAX_SCREEN_RATIO
+        screen_width = self.screen_size[0] * MAX_SCREEN_RATIO
+        screen_height = self.screen_size[1] * MAX_SCREEN_RATIO
 
         if initial_set_up:
             width, height, mines = self.user.get_current_game_specs()
